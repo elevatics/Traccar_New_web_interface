@@ -21,6 +21,13 @@ const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: Fle
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
+  const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
+  
+  useEffect(() => {
+    if (selectedVehicle) {
+      setCardPosition({ x: 0, y: 0 });
+    }
+  }, [selectedVehicle]);
 
   useEffect(() => {
     if (!mapContainer.current || !apiToken) return;
@@ -184,8 +191,21 @@ const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: Fle
       </div>
 
       {selectedVehicle && (
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 w-96 max-w-[90vw]">
-          <VehicleDetailCard vehicle={selectedVehicle} onClose={onClearSelection} />
+        <div 
+          className="absolute z-10 w-96 max-w-[90vw]"
+          style={{
+            left: cardPosition.x === 0 ? '50%' : `${cardPosition.x}px`,
+            bottom: cardPosition.y === 0 ? '2rem' : 'auto',
+            top: cardPosition.y !== 0 ? `${cardPosition.y}px` : 'auto',
+            transform: cardPosition.x === 0 ? 'translateX(-50%)' : 'none',
+          }}
+        >
+          <VehicleDetailCard 
+            vehicle={selectedVehicle} 
+            onClose={onClearSelection}
+            position={cardPosition}
+            onPositionChange={setCardPosition}
+          />
         </div>
       )}
     </div>

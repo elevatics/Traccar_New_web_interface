@@ -18,16 +18,61 @@ import {
   X
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface VehicleDetailCardProps {
   vehicle: Vehicle;
   onClose?: () => void;
+  position?: { x: number; y: number };
+  onPositionChange?: (position: { x: number; y: number }) => void;
 }
 
-const VehicleDetailCard = ({ vehicle, onClose }: VehicleDetailCardProps) => {
+const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange }: VehicleDetailCardProps) => {
   const [expanded, setExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - (position?.x || 0),
+      y: e.clientY - (position?.y || 0),
+    });
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !onPositionChange) return;
+      
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+      
+      const maxX = window.innerWidth - (cardRef.current?.offsetWidth || 0);
+      const maxY = window.innerHeight - (cardRef.current?.offsetHeight || 0);
+      
+      onPositionChange({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY)),
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragStart, onPositionChange]);
 
   const getDirectionArrow = (course: number) => {
     const directions = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
@@ -46,8 +91,11 @@ const VehicleDetailCard = ({ vehicle, onClose }: VehicleDetailCardProps) => {
   );
 
   return (
-    <Card className="w-full shadow-2xl max-h-[80vh] flex flex-col">
-      <CardHeader className="pb-3 flex-shrink-0">
+    <Card ref={cardRef} className={cn("w-full shadow-2xl max-h-[80vh] flex flex-col", isDragging && "cursor-grabbing")}>
+      <CardHeader 
+        className="pb-3 flex-shrink-0 cursor-grab active:cursor-grabbing" 
+        onMouseDown={handleMouseDown}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
