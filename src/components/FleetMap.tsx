@@ -10,12 +10,13 @@ import VehicleDetailCard from './VehicleDetailCard';
 interface FleetMapProps {
   vehicles: Vehicle[];
   selectedVehicle: Vehicle | null;
+  onClearSelection: () => void;
   apiToken: string;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
 
-const FleetMap = ({ vehicles, selectedVehicle, apiToken }: FleetMapProps) => {
+const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
@@ -184,7 +185,7 @@ const FleetMap = ({ vehicles, selectedVehicle, apiToken }: FleetMapProps) => {
 
       {selectedVehicle && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 w-96 max-w-[90vw]">
-          <VehicleDetailCard vehicle={selectedVehicle} />
+          <VehicleDetailCard vehicle={selectedVehicle} onClose={onClearSelection} />
         </div>
       )}
     </div>

@@ -14,7 +14,8 @@ import {
   Thermometer,
   Zap,
   CheckCircle,
-  XCircle
+  XCircle,
+  X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
@@ -56,14 +57,14 @@ const VehicleDetailCard = ({ vehicle, onClose }: VehicleDetailCardProps) => {
             <p className="text-sm text-muted-foreground">{vehicle.plateNumber}</p>
           </div>
           {onClose && (
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              ✕
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+              <X className="h-4 w-4" />
             </Button>
           )}
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3 overflow-y-auto flex-1">
+      <CardContent className="space-y-3 overflow-y-auto flex-1 scrollbar-thin">
         {/* Quick Info */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-800">

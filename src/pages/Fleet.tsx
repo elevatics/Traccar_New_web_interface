@@ -14,20 +14,16 @@ import {
   Grid3x3
 } from 'lucide-react';
 import FleetMap from '@/components/FleetMap';
-import MapboxTokenInput from '@/components/MapboxTokenInput';
 import VehicleList from '@/components/VehicleList';
 import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
 
+const MAPBOX_TOKEN = '[REDACTED_MAPBOX_TOKEN]';
+
 export default function Fleet() {
-  const [apiToken, setApiToken] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [gridView, setGridView] = useState(false);
   const [selectedVehicles, setSelectedVehicles] = useState<Vehicle[]>([mockVehicles[0]]);
-
-  if (!apiToken) {
-    return <MapboxTokenInput onTokenSubmit={setApiToken} />;
-  }
 
   const toggleVehicleSelection = (vehicle: Vehicle) => {
     setSelectedVehicles(prev => {
@@ -111,7 +107,8 @@ export default function Fleet() {
                               <FleetMap 
                                 vehicles={[vehicle]} 
                                 selectedVehicle={null}
-                                apiToken={apiToken}
+                                onClearSelection={() => {}}
+                                apiToken={MAPBOX_TOKEN}
                               />
                             </div>
                           </div>
@@ -120,7 +117,8 @@ export default function Fleet() {
                         <FleetMap 
                           vehicles={mockVehicles} 
                           selectedVehicle={selectedVehicle}
-                          apiToken={apiToken}
+                          onClearSelection={() => setSelectedVehicle(null)}
+                          apiToken={MAPBOX_TOKEN}
                         />
                       )}
                     </div>
