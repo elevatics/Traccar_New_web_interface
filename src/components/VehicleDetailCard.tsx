@@ -48,8 +48,8 @@ const VehicleDetailCard = ({ vehicle, onClose }: VehicleDetailCardProps) => {
   return (
     <Card className="w-full shadow-2xl max-h-[80vh] flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <StatusBadge status={vehicle.status} />
               <CardTitle className="text-lg">{vehicle.name}</CardTitle>
@@ -57,8 +57,13 @@ const VehicleDetailCard = ({ vehicle, onClose }: VehicleDetailCardProps) => {
             <p className="text-sm text-muted-foreground">{vehicle.plateNumber}</p>
           </div>
           {onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-              <X className="h-4 w-4" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onClose} 
+              className="h-8 w-8 flex-shrink-0 hover:bg-destructive/10"
+            >
+              <X className="h-5 w-5" />
             </Button>
           )}
         </div>
