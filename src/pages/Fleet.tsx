@@ -11,9 +11,10 @@ import {
   MessageSquare, 
   Navigation,
   Eye,
-  Grid3x3
+  MonitorPlay
 } from 'lucide-react';
 import FleetMap from '@/components/FleetMap';
+import Vehicle360View from '@/components/Vehicle360View';
 import VehicleList from '@/components/VehicleList';
 import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
@@ -22,7 +23,7 @@ const MAPBOX_TOKEN = '[REDACTED_MAPBOX_TOKEN]';
 
 export default function Fleet() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-  const [gridView, setGridView] = useState(false);
+  const [liveView, setLiveView] = useState(false);
   const [selectedVehicles, setSelectedVehicles] = useState<Vehicle[]>([mockVehicles[0]]);
 
   const toggleVehicleSelection = (vehicle: Vehicle) => {
@@ -88,31 +89,33 @@ export default function Fleet() {
                         Track Live Trip
                       </Button>
                       <Button 
-                        variant={gridView ? "default" : "outline"} 
+                        variant={liveView ? "default" : "outline"} 
                         size="sm"
-                        onClick={() => setGridView(!gridView)}
+                        onClick={() => setLiveView(!liveView)}
                       >
-                        <Grid3x3 className="h-4 w-4 mr-2" />
-                        Grid View
+                        <MonitorPlay className="h-4 w-4 mr-2" />
+                        Live View
                       </Button>
                     </div>
 
-                    {/* Map View */}
-                    <div className={gridView ? "grid grid-cols-2 gap-4 h-[600px]" : "h-[600px]"}>
-                      {gridView ? (
-                        selectedVehicles.map((vehicle) => (
-                          <div key={vehicle.id} className="border rounded-lg overflow-hidden">
-                            <div className="bg-muted p-2 text-sm font-medium">{vehicle.name}</div>
-                            <div className="h-full">
-                              <FleetMap 
-                                vehicles={[vehicle]} 
-                                selectedVehicle={null}
-                                onClearSelection={() => {}}
-                                apiToken={MAPBOX_TOKEN}
-                              />
-                            </div>
+                    {/* Map + 360 View Layout */}
+                    <div className={liveView ? "grid grid-cols-3 gap-4 h-[600px]" : "h-[600px]"}>
+                      {liveView ? (
+                        <>
+                          {/* Map takes 2/3 */}
+                          <div className="col-span-2 border rounded-lg overflow-hidden">
+                            <FleetMap 
+                              vehicles={mockVehicles} 
+                              selectedVehicle={selectedVehicle}
+                              onClearSelection={() => setSelectedVehicle(null)}
+                              apiToken={MAPBOX_TOKEN}
+                            />
                           </div>
-                        ))
+                          {/* 360 View takes 1/3 */}
+                          <div className="col-span-1">
+                            <Vehicle360View vehicle={selectedVehicle || mockVehicles[0]} />
+                          </div>
+                        </>
                       ) : (
                         <FleetMap 
                           vehicles={mockVehicles} 
@@ -136,21 +139,21 @@ export default function Fleet() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {gridView && (
+                  {liveView && (
                     <div className="text-sm text-muted-foreground mb-2">
-                      Click on vehicles to add/remove from grid view tracking
+                      Click on vehicles to add/remove from live view tracking
                     </div>
                   )}
                   {mockVehicles.map((vehicle) => (
                     <div 
                       key={vehicle.id} 
                       className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
-                        gridView && selectedVehicles.find(v => v.id === vehicle.id) 
+                        liveView && selectedVehicles.find(v => v.id === vehicle.id) 
                           ? 'border-primary bg-primary/5' 
                           : ''
                       }`}
-                      onClick={() => gridView && toggleVehicleSelection(vehicle)}
-                      style={{ cursor: gridView ? 'pointer' : 'default' }}
+                      onClick={() => liveView && toggleVehicleSelection(vehicle)}
+                      style={{ cursor: liveView ? 'pointer' : 'default' }}
                     >
                       <div className="flex justify-between items-start">
                         <div>
