@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Map as MapIcon, Satellite, Navigation, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
+import VehicleAIChat from './VehicleAIChat';
 
 interface FleetMapProps {
   vehicles: Vehicle[];
@@ -22,6 +23,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: Fle
   const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiChatVehicle, setAiChatVehicle] = useState<Vehicle | null>(null);
   
   useEffect(() => {
     if (selectedVehicle) {
@@ -205,6 +208,23 @@ const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: Fle
             onClose={onClearSelection}
             position={cardPosition}
             onPositionChange={setCardPosition}
+            onOpenAIChat={() => {
+              setAiChatVehicle(selectedVehicle);
+              setShowAIChat(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* AI Chat Window */}
+      {showAIChat && aiChatVehicle && (
+        <div className="absolute z-20 top-4 right-4">
+          <VehicleAIChat 
+            vehicle={aiChatVehicle} 
+            onClose={() => {
+              setShowAIChat(false);
+              setAiChatVehicle(null);
+            }} 
           />
         </div>
       )}
