@@ -15,7 +15,8 @@ import {
   Zap,
   CheckCircle,
   XCircle,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState, useEffect, useRef } from 'react';
@@ -26,9 +27,10 @@ interface VehicleDetailCardProps {
   onClose?: () => void;
   position?: { x: number; y: number };
   onPositionChange?: (position: { x: number; y: number }) => void;
+  onOpenAIChat?: () => void;
 }
 
-const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange }: VehicleDetailCardProps) => {
+const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange, onOpenAIChat }: VehicleDetailCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -144,25 +146,37 @@ const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange }: Veh
           </div>
         </div>
 
-        {/* Expand Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? (
-            <>
-              <ChevronUp className="h-4 w-4 mr-2" />
-              Show Less
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-4 w-4 mr-2" />
-              Show More Details
-            </>
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-2" />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-2" />
+                More Details
+              </>
+            )}
+          </Button>
+          {onOpenAIChat && (
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 gap-1.5"
+              onClick={onOpenAIChat}
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Companion
+            </Button>
           )}
-        </Button>
+        </div>
 
         {/* Expanded Details */}
         <div className={cn(
