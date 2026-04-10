@@ -14,7 +14,6 @@ const Index = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <DashboardStats vehicles={vehicles} />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1">
           <FleetMap
