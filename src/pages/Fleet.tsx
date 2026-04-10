@@ -107,6 +107,7 @@ export default function Fleet() {
                             <FleetMap 
                               vehicles={mockVehicles} 
                               selectedVehicle={selectedVehicle}
+                              onSelectVehicle={setSelectedVehicle}
                               onClearSelection={() => setSelectedVehicle(null)}
                               apiToken={MAPBOX_TOKEN}
                             />
@@ -120,6 +121,7 @@ export default function Fleet() {
                         <FleetMap 
                           vehicles={mockVehicles} 
                           selectedVehicle={selectedVehicle}
+                          onSelectVehicle={setSelectedVehicle}
                           onClearSelection={() => setSelectedVehicle(null)}
                           apiToken={MAPBOX_TOKEN}
                         />
