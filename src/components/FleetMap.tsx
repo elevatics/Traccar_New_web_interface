@@ -100,6 +100,10 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         </div>
       `;
 
+      el.addEventListener('click', () => {
+        onSelectVehicle(vehicle);
+      });
+
       const marker = new mapboxgl.Marker(el)
         .setLngLat([vehicle.location.lng, vehicle.location.lat])
         .addTo(map.current!);
