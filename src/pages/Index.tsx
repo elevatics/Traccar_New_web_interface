@@ -3,8 +3,8 @@ import { Vehicle, VehicleStatus } from '@/types/vehicle';
 import { mockVehicles } from '@/data/mockVehicles';
 import VehicleList from '@/components/VehicleList';
 import FleetMap from '@/components/FleetMap';
-import { Button } from '@/components/ui/button';
-import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const MAPBOX_TOKEN = '[REDACTED_MAPBOX_TOKEN]';
 
@@ -16,8 +16,9 @@ const Index = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 flex overflow-hidden relative">
-        <div className="flex-1">
+      <div className="flex-1 flex overflow-hidden">
+        {/* Map area */}
+        <div className="flex-1 relative">
           <FleetMap
             vehicles={vehicles}
             selectedVehicle={selectedVehicle}
@@ -27,31 +28,42 @@ const Index = () => {
           />
         </div>
 
-        {/* Toggle button */}
-        <Button
-          variant="secondary"
-          size="icon"
-          className="absolute top-4 right-4 z-20 shadow-lg"
-          style={sidebarOpen ? { right: '21rem' } : {}}
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-        >
-          {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-        </Button>
+        {/* Sidebar with edge toggle handle */}
+        <div className="relative flex-shrink-0">
+          {/* Toggle handle - always visible on the left edge of sidebar */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 -left-4 z-30",
+              "w-4 h-12 flex items-center justify-center",
+              "bg-card border border-border border-r-0 rounded-l-md",
+              "hover:bg-accent transition-colors cursor-pointer",
+              "shadow-sm"
+            )}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {sidebarOpen ? (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronLeft className="h-3 w-3 text-muted-foreground" />
+            )}
+          </button>
 
-        {/* Collapsible sidebar */}
-        <div
-          className={`flex-shrink-0 transition-all duration-300 overflow-hidden ${
-            sidebarOpen ? 'w-80' : 'w-0'
-          }`}
-        >
-          <div className="w-80 h-full">
-            <VehicleList
-              vehicles={vehicles}
-              selectedVehicle={selectedVehicle}
-              onSelectVehicle={setSelectedVehicle}
-              filterStatus={filterStatus}
-              onFilterChange={setFilterStatus}
-            />
+          <div
+            className={cn(
+              "h-full transition-[width] duration-300 ease-in-out overflow-hidden",
+              sidebarOpen ? "w-80" : "w-0"
+            )}
+          >
+            <div className="w-80 h-full">
+              <VehicleList
+                vehicles={vehicles}
+                selectedVehicle={selectedVehicle}
+                onSelectVehicle={setSelectedVehicle}
+                filterStatus={filterStatus}
+                onFilterChange={setFilterStatus}
+              />
+            </div>
           </div>
         </div>
       </div>
