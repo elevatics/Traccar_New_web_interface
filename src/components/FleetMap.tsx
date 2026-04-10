@@ -11,13 +11,14 @@ import VehicleAIChat from './VehicleAIChat';
 interface FleetMapProps {
   vehicles: Vehicle[];
   selectedVehicle: Vehicle | null;
+  onSelectVehicle: (vehicle: Vehicle) => void;
   onClearSelection: () => void;
   apiToken: string;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
 
-const FleetMap = ({ vehicles, selectedVehicle, onClearSelection, apiToken }: FleetMapProps) => {
+const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
