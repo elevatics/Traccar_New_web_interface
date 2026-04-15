@@ -1,10 +1,15 @@
 import axios from "axios";
 
 const TRACCAR_BASIC_AUTH_KEY = "traccar_basic_auth";
-const TRACCAR_REMOTE_BASE_URL = "http://51.81.81.118:8082/api";
-const traccarBaseUrl =
-  import.meta.env.VITE_TRACCAR_API_BASE_URL ||
-  (import.meta.env.DEV ? "/api" : TRACCAR_REMOTE_BASE_URL);
+
+/**
+ * Base URL for Traccar REST calls from the browser.
+ * - Default `/api` is same-origin (HTTPS on Vercel, dev server) so you avoid mixed-content
+ *   when the page is served over HTTPS. Proxy rewrites must forward `/api` → your Traccar server
+ *   (see `vercel.json` and `vite.config.ts`).
+ * - Override with `VITE_TRACCAR_API_BASE_URL` only if you use an HTTPS-capable Traccar URL or another proxy.
+ */
+const traccarBaseUrl = import.meta.env.VITE_TRACCAR_API_BASE_URL || "/api";
 
 const getStoredBasicAuth = () => {
   if (typeof window === "undefined") {
