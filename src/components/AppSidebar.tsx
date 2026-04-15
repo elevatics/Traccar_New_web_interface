@@ -27,6 +27,7 @@ import {
   useSidebar } from
 "@/components/ui/sidebar";
 import { useUserRole, rolePermissions } from "@/contexts/UserRoleContext";
+import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
 
 const menuItems = [
 { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -43,6 +44,7 @@ const menuItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const { role } = useUserRole();
+  const { logout } = useTraccarAuth();
   const collapsed = state === "collapsed";
 
   const allowedPaths = rolePermissions[role];
@@ -102,7 +104,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Logout">
-              <button onClick={() => console.log("Logout")}>
+              <button
+                onClick={async () => {
+                  await logout();
+                }}
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Logout</span>
               </button>

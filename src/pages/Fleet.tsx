@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,15 +16,20 @@ import {
 import FleetMap from '@/components/FleetMap';
 import Vehicle360View from '@/components/Vehicle360View';
 import VehicleList from '@/components/VehicleList';
+import GeofenceManager from '@/components/GeofenceManager';
 import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
+import { getEvents } from '@/services/eventService';
 
-const MAPBOX_TOKEN = '[REDACTED_MAPBOX_TOKEN]';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 export default function Fleet() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [liveView, setLiveView] = useState(false);
   const [selectedVehicles, setSelectedVehicles] = useState<Vehicle[]>([mockVehicles[0]]);
+  const [alerts, setAlerts] = useState<{ type: string; deviceId: number | null; eventTime: string | null }[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
 
   const toggleVehicleSelection = (vehicle: Vehicle) => {
     setSelectedVehicles(prev => {
@@ -35,6 +40,37 @@ export default function Fleet() {
       return [...prev, vehicle];
     });
   };
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        setAlertsLoading(true);
+        setAlertsError(null);
+        const data = await getEvents();
+        setAlerts(data);
+      } catch (error: any) {
+        setAlertsError(error?.message || 'Failed to load alerts');
+      } finally {
+        setAlertsLoading(false);
+      }
+    };
+
+    loadAlerts();
+    const intervalId = setInterval(loadAlerts, 5000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const latestAlerts = useMemo(
+    () =>
+      [...alerts]
+        .sort((a, b) => {
+          const aTime = a.eventTime ? new Date(a.eventTime).getTime() : 0;
+          const bTime = b.eventTime ? new Date(b.eventTime).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 10),
+    [alerts]
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -186,31 +222,41 @@ export default function Fleet() {
           <TabsContent value="alerts" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Active Alerts & Notifications</CardTitle>
-                <CardDescription>Current warnings and critical notifications</CardDescription>
+                <CardTitle>Latest Alerts</CardTitle>
+                <CardDescription>Most recent events from Traccar</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="p-4 border-l-4 border-red-500 bg-red-50 dark:bg-red-950/20 rounded">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-red-700 dark:text-red-400">Speed Limit Exceeded</h4>
-                        <p className="text-sm text-red-600 dark:text-red-300">Truck Alpha - 85 km/h in 60 km/h zone</p>
-                        <p className="text-xs text-muted-foreground mt-1">2 minutes ago</p>
+                  {alertsLoading && <p className="text-sm text-muted-foreground">Loading latest alerts...</p>}
+                  {!alertsLoading && alertsError && (
+                    <p className="text-sm text-destructive">{alertsError}</p>
+                  )}
+                  {!alertsLoading && !alertsError && latestAlerts.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No recent alerts available.</p>
+                  )}
+                  {!alertsLoading &&
+                    !alertsError &&
+                    latestAlerts.map((alert, index) => (
+                      <div
+                        key={`${alert.deviceId}-${alert.eventTime}-${index}`}
+                        className="p-4 border-l-4 border-orange-500 bg-orange-50 dark:bg-orange-950/20 rounded"
+                      >
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                          <div>
+                            <h4 className="font-semibold text-orange-700 dark:text-orange-300 capitalize">
+                              {alert.type}
+                            </h4>
+                            <p className="text-sm text-orange-600 dark:text-orange-200">
+                              Device ID: {alert.deviceId ?? 'Unknown'}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {alert.eventTime ? new Date(alert.eventTime).toLocaleString() : 'Time unavailable'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  <div className="p-4 border-l-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20 rounded">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-yellow-700 dark:text-yellow-400">Low Fuel Warning</h4>
-                        <p className="text-sm text-yellow-600 dark:text-yellow-300">Van Delta - Fuel level at 45%</p>
-                        <p className="text-xs text-muted-foreground mt-1">15 minutes ago</p>
-                      </div>
-                    </div>
-                  </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -220,35 +266,10 @@ export default function Fleet() {
             <Card>
               <CardHeader>
                 <CardTitle>Geofence Management</CardTitle>
-                <CardDescription>Manage zones and boundaries for fleet monitoring</CardDescription>
+                <CardDescription>Create and manage zones and boundaries for fleet monitoring</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <Button>
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Create New Geofence
-                  </Button>
-                  <div className="space-y-2">
-                    <div className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-semibold">Downtown Delivery Zone</h4>
-                          <p className="text-sm text-muted-foreground">Radius: 5 km</p>
-                        </div>
-                        <div className="text-sm text-muted-foreground">3 vehicles inside</div>
-                      </div>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-semibold">Warehouse Area</h4>
-                          <p className="text-sm text-muted-foreground">Radius: 2 km</p>
-                        </div>
-                        <div className="text-sm text-muted-foreground">1 vehicle inside</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <GeofenceManager />
               </CardContent>
             </Card>
           </TabsContent>
@@ -257,7 +278,7 @@ export default function Fleet() {
             <Card>
               <CardHeader>
                 <CardTitle>Alert History & Rules</CardTitle>
-                <CardDescription>Configure and view notification history</CardDescription>
+                <CardDescription>Configure and view live notification history</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -266,24 +287,34 @@ export default function Fleet() {
                     Configure Alert Rules
                   </Button>
                   <div className="space-y-2">
-                    <div className="p-3 border rounded-lg text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Speed limit violation - Truck Alpha</span>
-                        <span className="text-muted-foreground">2m ago</span>
-                      </div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Low fuel alert - Van Delta</span>
-                        <span className="text-muted-foreground">15m ago</span>
-                      </div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">Maintenance due - Truck Gamma</span>
-                        <span className="text-muted-foreground">1h ago</span>
-                      </div>
-                    </div>
+                    {alertsLoading && (
+                      <p className="text-sm text-muted-foreground">Loading notification history...</p>
+                    )}
+                    {!alertsLoading && alertsError && (
+                      <p className="text-sm text-destructive">{alertsError}</p>
+                    )}
+                    {!alertsLoading && !alertsError && latestAlerts.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No notifications available.</p>
+                    )}
+                    {!alertsLoading &&
+                      !alertsError &&
+                      latestAlerts.map((alert, index) => (
+                        <div
+                          key={`notification-${alert.deviceId}-${alert.eventTime}-${index}`}
+                          className="p-3 border rounded-lg text-sm"
+                        >
+                          <div className="flex justify-between gap-4">
+                            <span className="font-medium capitalize">
+                              {alert.type} - Device {alert.deviceId ?? "Unknown"}
+                            </span>
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {alert.eventTime
+                                ? new Date(alert.eventTime).toLocaleString()
+                                : "Time unavailable"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </CardContent>

@@ -1,11 +1,76 @@
+import { useMemo, useState } from 'react';
 import { Vehicle, VehicleStatus } from '@/types/vehicle';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import StatusBadge from './StatusBadge';
 import { cn } from '@/lib/utils';
+import { ChevronDown, Plus } from 'lucide-react';
+import AddVehicleDialog from './AddVehicleDialog';
+import useFleetData from '@/hooks/useFleetData';
 import { formatDistanceToNow } from 'date-fns';
-import { ChevronDown } from 'lucide-react';
+
+type FleetListItem = {
+  id: string | number;
+  deviceId?: number;
+  protocol?: string;
+  name: string;
+  plateNumber?: string;
+  driver?: string;
+  status: string;
+  address?: string;
+  speed: number;
+  serverTime?: string | null;
+  deviceTime?: string | null;
+  fixTime?: string | null;
+  lastUpdate?: string | null;
+  fuelLevel?: number;
+  odometer?: number;
+  outdated?: boolean;
+  valid?: boolean;
+  altitude?: number;
+  course?: number;
+  accuracy?: number;
+  network?: string;
+  geofenceIds?: string;
+  tripOdometer?: number;
+  fuelConsumption?: number;
+  ignition?: boolean;
+  statusCode?: number;
+  coolantTemp?: number;
+  mapIntake?: number;
+  rpm?: number;
+  obdSpeed?: number;
+  intakeTemp?: number;
+  fuel?: number;
+  distance?: number;
+  totalDistance?: number;
+  motion?: boolean;
+  lat: number;
+  lng: number;
+};
+const toVehicleStatus = (status?: string): VehicleStatus => {
+  if (status === 'online' || status === 'idle' || status === 'offline') {
+    return status;
+  }
+  return 'offline';
+};
+
+const getUpdatedText = (vehicle: FleetListItem) => {
+  const updatedAt =
+    vehicle.lastUpdate || vehicle.fixTime || vehicle.deviceTime || vehicle.serverTime;
+
+  if (!updatedAt) {
+    return "N/A";
+  }
+
+  const parsed = new Date(updatedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return "N/A";
+  }
+
+  return formatDistanceToNow(parsed, { addSuffix: true });
+};
 
 interface VehicleListProps {
   vehicles: Vehicle[];
@@ -22,22 +87,106 @@ const VehicleList = ({
   filterStatus,
   onFilterChange,
 }: VehicleListProps) => {
+  const [addVehicleOpen, setAddVehicleOpen] = useState(false);
+  const { fleetData, loading, error } = useFleetData();
+
+  const fleetVehicles = useMemo(
+    () =>
+      fleetData.map((item) => ({
+        ...item,
+        id: item.id,
+        name: item.name,
+        status: item.status ?? 'offline',
+        speed: item.speed ?? 0,
+        lat: item.lat,
+        lng: item.lng,
+      })),
+    [fleetData]
+  );
+
   const filteredVehicles =
     filterStatus === 'all'
-      ? vehicles
-      : vehicles.filter((v) => v.status === filterStatus);
+      ? fleetVehicles
+      : fleetVehicles.filter((v) => v.status === filterStatus);
 
   const statusCounts = {
-    all: vehicles.length,
-    online: vehicles.filter((v) => v.status === 'online').length,
-    idle: vehicles.filter((v) => v.status === 'idle').length,
-    offline: vehicles.filter((v) => v.status === 'offline').length,
+    all: fleetVehicles.length,
+    online: fleetVehicles.filter((v) => v.status === 'online').length,
+    idle: fleetVehicles.filter((v) => v.status === 'idle').length,
+    offline: fleetVehicles.filter((v) => v.status === 'offline').length,
+  };
+
+  const getVehicleForSelection = (fleetVehicle: FleetListItem): Vehicle => {
+    const nowIso = new Date().toISOString();
+    const matchedVehicle = vehicles.find(
+      (vehicle) => String(vehicle.id) === String(fleetVehicle.id)
+    );
+
+    if (matchedVehicle) {
+      return {
+        ...matchedVehicle,
+        status: toVehicleStatus(fleetVehicle.status) ?? matchedVehicle.status,
+        speed: fleetVehicle.speed,
+        location: {
+          ...matchedVehicle.location,
+          lat: fleetVehicle.lat,
+          lng: fleetVehicle.lng,
+        },
+      };
+    }
+
+    return {
+      id: String(fleetVehicle.id),
+      deviceId: Number(fleetVehicle.deviceId ?? fleetVehicle.id),
+      protocol: fleetVehicle.protocol || 'traccar',
+      name: fleetVehicle.name,
+      plateNumber: fleetVehicle.plateNumber || '-',
+      driver: fleetVehicle.driver || '-',
+      status: toVehicleStatus(fleetVehicle.status),
+      location: {
+        lat: fleetVehicle.lat,
+        lng: fleetVehicle.lng,
+        address: fleetVehicle.address || 'Live location',
+      },
+      speed: fleetVehicle.speed,
+      serverTime: fleetVehicle.serverTime || nowIso,
+      deviceTime: fleetVehicle.deviceTime || nowIso,
+      fixTime: fleetVehicle.fixTime || nowIso,
+      lastUpdate: fleetVehicle.lastUpdate || nowIso,
+      fuelLevel: Number(fleetVehicle.fuelLevel) || 0,
+      odometer: Number(fleetVehicle.odometer) || 0,
+      outdated: Boolean(fleetVehicle.outdated),
+      valid: fleetVehicle.valid !== false,
+      altitude: Number(fleetVehicle.altitude) || 0,
+      course: Number(fleetVehicle.course) || 0,
+      accuracy: Number(fleetVehicle.accuracy) || 0,
+      network: fleetVehicle.network,
+      geofenceIds: fleetVehicle.geofenceIds,
+      tripOdometer: Number(fleetVehicle.tripOdometer) || 0,
+      fuelConsumption: Number(fleetVehicle.fuelConsumption) || 0,
+      ignition: Boolean(fleetVehicle.ignition),
+      statusCode: Number(fleetVehicle.statusCode) || 0,
+      coolantTemp: fleetVehicle.coolantTemp,
+      mapIntake: fleetVehicle.mapIntake,
+      rpm: fleetVehicle.rpm,
+      obdSpeed: fleetVehicle.obdSpeed,
+      intakeTemp: fleetVehicle.intakeTemp,
+      fuel: Number(fleetVehicle.fuel) || 0,
+      distance: Number(fleetVehicle.distance) || 0,
+      totalDistance: Number(fleetVehicle.totalDistance) || 0,
+      motion: Boolean(fleetVehicle.motion),
+    };
   };
 
   return (
-    <div className="h-full flex flex-col bg-card border-l border-border">
+    <div className="h-full flex flex-col bg-card">
       <div className="p-4 border-b border-border bg-card">
-        <h2 className="text-xl font-bold text-card-foreground mb-4">Fleet Overview</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-card-foreground">Fleet Overview</h2>
+          <Button size="sm" variant="outline" onClick={() => setAddVehicleOpen(true)}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
         
         <div className="grid grid-cols-2 gap-2 mb-4">
           <Button
@@ -79,12 +228,16 @@ const VehicleList = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {filteredVehicles.map((vehicle) => (
+        {loading && <p className="text-sm text-muted-foreground">Loading devices...</p>}
+        {!loading && error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
+        {!loading && !error && filteredVehicles.map((vehicle) => (
           <Collapsible key={vehicle.id}>
             <Card
               className={cn(
                 'transition-all border',
-                selectedVehicle?.id === vehicle.id
+                String(selectedVehicle?.id) === String(vehicle.id)
                   ? 'border-primary bg-primary/5 shadow-md'
                   : 'border-border hover:border-primary/50'
               )}
@@ -92,10 +245,10 @@ const VehicleList = ({
               <CollapsibleTrigger asChild>
                 <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/50 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <StatusBadge status={vehicle.status} showLabel={false} size="sm" />
+                    <StatusBadge status={vehicle.status as VehicleStatus} showLabel={false} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-card-foreground truncate">{vehicle.name}</p>
-                      <p className="text-xs text-muted-foreground">{vehicle.plateNumber}</p>
+                      <p className="text-xs text-muted-foreground">{vehicle.plateNumber || '-'}</p>
                     </div>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 data-[state=open]:rotate-180" />
@@ -105,25 +258,23 @@ const VehicleList = ({
               <CollapsibleContent>
                 <div 
                   className="px-3 pb-3 pt-1 space-y-2 border-t border-border/50 cursor-pointer hover:bg-accent/30 transition-colors"
-                  onClick={() => onSelectVehicle(vehicle)}
+                  onClick={() => onSelectVehicle(getVehicleForSelection(vehicle))}
                 >
                   <div className="text-xs space-y-1.5">
                     <p className="text-muted-foreground">
-                      Driver: <span className="text-card-foreground font-medium">{vehicle.driver}</span>
+                      Driver: <span className="text-card-foreground font-medium">{vehicle.driver || '-'}</span>
                     </p>
                     <p className="text-muted-foreground">
                       Speed: <span className="text-card-foreground font-medium">{vehicle.speed} mph</span>
                     </p>
                     <p className="text-muted-foreground">
-                      Updated: <span className="text-card-foreground font-medium">
-                        {formatDistanceToNow(new Date(vehicle.lastUpdate), { addSuffix: true })}
-                      </span>
+                      Updated: <span className="text-card-foreground font-medium">{getUpdatedText(vehicle)}</span>
                     </p>
                   </div>
                   <Button 
                     size="sm" 
                     className="w-full mt-2"
-                    variant={selectedVehicle?.id === vehicle.id ? "default" : "outline"}
+                    variant={String(selectedVehicle?.id) === String(vehicle.id) ? "default" : "outline"}
                   >
                     View on Map
                   </Button>
@@ -133,6 +284,7 @@ const VehicleList = ({
           </Collapsible>
         ))}
       </div>
+      <AddVehicleDialog open={addVehicleOpen} onOpenChange={setAddVehicleOpen} />
     </div>
   );
 };

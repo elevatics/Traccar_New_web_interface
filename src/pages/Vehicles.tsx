@@ -28,6 +28,7 @@ import {
   FileText,
   Tag,
   MapPinned,
+  Plus,
   Battery,
   Gauge,
   Fuel,
@@ -40,6 +41,7 @@ import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
+import AddVehicleDialog from '@/components/AddVehicleDialog';
 
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
@@ -48,6 +50,7 @@ export default function Vehicles() {
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
@@ -406,7 +409,12 @@ export default function Vehicles() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Vehicles</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Vehicles</h2>
+            <Button onClick={() => setAddVehicleOpen(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Add Vehicle
+            </Button>
+          </div>
           <Popover open={viewDropdownOpen} onOpenChange={setViewDropdownOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-[200px] justify-between">
@@ -632,6 +640,8 @@ export default function Vehicles() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AddVehicleDialog open={addVehicleOpen} onOpenChange={setAddVehicleOpen} />
     </div>
   );
 }

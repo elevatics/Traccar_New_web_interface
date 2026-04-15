@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Vehicle } from '@/types/vehicle';
@@ -7,6 +7,7 @@ import { Map as MapIcon, Satellite, Navigation, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
+import useFleetData from '@/hooks/useFleetData';
 
 interface FleetMapProps {
   vehicles: Vehicle[];
@@ -17,15 +18,131 @@ interface FleetMapProps {
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
+type FleetPoint = {
+  id: string | number;
+  deviceId?: number;
+  protocol?: string;
+  name: string;
+  plateNumber?: string;
+  driver?: string;
+  status: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  speed: number;
+  serverTime?: string | null;
+  deviceTime?: string | null;
+  fixTime?: string | null;
+  lastUpdate?: string | null;
+  fuelLevel?: number;
+  odometer?: number;
+  outdated?: boolean;
+  valid?: boolean;
+  altitude?: number;
+  course?: number;
+  accuracy?: number;
+  network?: string;
+  geofenceIds?: string;
+  tripOdometer?: number;
+  fuelConsumption?: number;
+  ignition?: boolean;
+  statusCode?: number;
+  coolantTemp?: number;
+  mapIntake?: number;
+  rpm?: number;
+  obdSpeed?: number;
+  intakeTemp?: number;
+  fuel?: number;
+  distance?: number;
+  totalDistance?: number;
+  motion?: boolean;
+};
+type MarkerEntry = {
+  marker: mapboxgl.Marker;
+  element: HTMLDivElement;
+  innerElement: HTMLDivElement;
+  popup: mapboxgl.Popup;
+  lastLat: number;
+  lastLng: number;
+  lastStatus: string;
+  lastName: string;
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  online: 'hsl(142, 71%, 45%)',
+  idle: 'hsl(45, 93%, 47%)',
+  offline: 'hsl(0, 84%, 60%)',
+  unknown: 'hsl(215, 16%, 47%)',
+};
+
+const getStatusColor = (status?: string) => STATUS_COLORS[status || ''] || STATUS_COLORS.unknown;
+const toVehicleStatus = (status?: string): Vehicle['status'] => {
+  if (status === 'online' || status === 'idle' || status === 'offline') {
+    return status;
+  }
+  return 'offline';
+};
+
+const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: String(fleetVehicle.id),
+    deviceId: Number(fleetVehicle.deviceId ?? fleetVehicle.id) || 0,
+    protocol: fleetVehicle.protocol || 'traccar',
+    name: fleetVehicle.name || 'Unknown Device',
+    plateNumber: fleetVehicle.plateNumber || '-',
+    driver: fleetVehicle.driver || '-',
+    status: toVehicleStatus(fleetVehicle.status),
+    location: {
+      lat: Number(fleetVehicle.lat) || 0,
+      lng: Number(fleetVehicle.lng) || 0,
+      address: fleetVehicle.address || 'Live location',
+    },
+    speed: Number(fleetVehicle.speed) || 0,
+    serverTime: fleetVehicle.serverTime || nowIso,
+    deviceTime: fleetVehicle.deviceTime || nowIso,
+    fixTime: fleetVehicle.fixTime || nowIso,
+    lastUpdate: fleetVehicle.lastUpdate || nowIso,
+    fuelLevel: Number(fleetVehicle.fuelLevel) || 0,
+    odometer: Number(fleetVehicle.odometer) || 0,
+    outdated: Boolean(fleetVehicle.outdated),
+    valid: fleetVehicle.valid !== false,
+    altitude: Number(fleetVehicle.altitude) || 0,
+    course: Number(fleetVehicle.course) || 0,
+    accuracy: Number(fleetVehicle.accuracy) || 0,
+    network: fleetVehicle.network,
+    geofenceIds: fleetVehicle.geofenceIds,
+    tripOdometer: Number(fleetVehicle.tripOdometer) || 0,
+    fuelConsumption: Number(fleetVehicle.fuelConsumption) || 0,
+    ignition: Boolean(fleetVehicle.ignition),
+    statusCode: Number(fleetVehicle.statusCode) || 0,
+    coolantTemp: fleetVehicle.coolantTemp,
+    mapIntake: fleetVehicle.mapIntake,
+    rpm: fleetVehicle.rpm,
+    obdSpeed: fleetVehicle.obdSpeed,
+    intakeTemp: fleetVehicle.intakeTemp,
+    fuel: Number(fleetVehicle.fuel) || 0,
+    distance: Number(fleetVehicle.distance) || 0,
+    totalDistance: Number(fleetVehicle.totalDistance) || 0,
+    motion: Boolean(fleetVehicle.motion),
+  };
+};
 
 const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markers = useRef<{ [key: string]: mapboxgl.Marker }>({});
+  const markers = useRef<Record<string, MarkerEntry>>({});
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiChatVehicle, setAiChatVehicle] = useState<Vehicle | null>(null);
+  const { fleetData } = useFleetData();
+  const vehiclesById = useMemo(
+    () =>
+      new Map(vehicles.map((vehicle) => [String(vehicle.id), vehicle])),
+    [vehicles]
+  );
   
   useEffect(() => {
     if (selectedVehicle) {
@@ -56,6 +173,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
     return () => {
+      Object.values(markers.current).forEach((entry) => entry.marker.remove());
+      markers.current = {};
       map.current?.remove();
     };
   }, [apiToken]);
@@ -63,54 +182,142 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   useEffect(() => {
     if (!map.current) return;
 
-    // Remove existing markers
-    Object.values(markers.current).forEach((marker) => marker.remove());
-    markers.current = {};
+    const nextIds = new Set<string>();
 
-    // Add markers for each vehicle
-    vehicles.forEach((vehicle) => {
-      const el = document.createElement('div');
-      el.className = 'vehicle-marker';
-      el.style.width = '32px';
-      el.style.height = '32px';
-      el.style.cursor = 'pointer';
+    (fleetData as FleetPoint[]).forEach((fleetVehicle) => {
+      const markerId = String(fleetVehicle.id);
+      nextIds.add(markerId);
+      const matchedVehicle = vehiclesById.get(markerId);
+      const selectedVehicleData = matchedVehicle
+        ? {
+            ...matchedVehicle,
+            deviceId: Number(fleetVehicle.deviceId ?? matchedVehicle.deviceId),
+            protocol: fleetVehicle.protocol || matchedVehicle.protocol,
+            plateNumber: fleetVehicle.plateNumber || matchedVehicle.plateNumber,
+            driver: fleetVehicle.driver || matchedVehicle.driver,
+            status: toVehicleStatus(fleetVehicle.status),
+            speed: Number(fleetVehicle.speed) || 0,
+            location: {
+              ...matchedVehicle.location,
+              lat: Number(fleetVehicle.lat) || 0,
+              lng: Number(fleetVehicle.lng) || 0,
+              address: fleetVehicle.address || matchedVehicle.location.address,
+            },
+            serverTime: fleetVehicle.serverTime || matchedVehicle.serverTime,
+            deviceTime: fleetVehicle.deviceTime || matchedVehicle.deviceTime,
+            fixTime: fleetVehicle.fixTime || matchedVehicle.fixTime,
+            lastUpdate: fleetVehicle.lastUpdate || matchedVehicle.lastUpdate,
+            fuelLevel: Number(fleetVehicle.fuelLevel ?? matchedVehicle.fuelLevel) || 0,
+            odometer: Number(fleetVehicle.odometer ?? matchedVehicle.odometer) || 0,
+            outdated: fleetVehicle.outdated ?? matchedVehicle.outdated,
+            valid: fleetVehicle.valid ?? matchedVehicle.valid,
+            altitude: Number(fleetVehicle.altitude ?? matchedVehicle.altitude) || 0,
+            course: Number(fleetVehicle.course ?? matchedVehicle.course) || 0,
+            accuracy: Number(fleetVehicle.accuracy ?? matchedVehicle.accuracy) || 0,
+            network: fleetVehicle.network ?? matchedVehicle.network,
+            geofenceIds: fleetVehicle.geofenceIds ?? matchedVehicle.geofenceIds,
+            tripOdometer:
+              Number(fleetVehicle.tripOdometer ?? matchedVehicle.tripOdometer) || 0,
+            fuelConsumption:
+              Number(
+                fleetVehicle.fuelConsumption ?? matchedVehicle.fuelConsumption
+              ) || 0,
+            ignition: fleetVehicle.ignition ?? matchedVehicle.ignition,
+            statusCode:
+              Number(fleetVehicle.statusCode ?? matchedVehicle.statusCode) || 0,
+            coolantTemp: fleetVehicle.coolantTemp ?? matchedVehicle.coolantTemp,
+            mapIntake: fleetVehicle.mapIntake ?? matchedVehicle.mapIntake,
+            rpm: fleetVehicle.rpm ?? matchedVehicle.rpm,
+            obdSpeed: fleetVehicle.obdSpeed ?? matchedVehicle.obdSpeed,
+            intakeTemp: fleetVehicle.intakeTemp ?? matchedVehicle.intakeTemp,
+            fuel: Number(fleetVehicle.fuel ?? matchedVehicle.fuel) || 0,
+            distance: Number(fleetVehicle.distance ?? matchedVehicle.distance) || 0,
+            totalDistance:
+              Number(fleetVehicle.totalDistance ?? matchedVehicle.totalDistance) || 0,
+            motion: fleetVehicle.motion ?? matchedVehicle.motion,
+          }
+        : createFallbackVehicle(fleetVehicle);
+      const existingEntry = markers.current[markerId];
 
-      const statusColors = {
-        online: 'hsl(142, 71%, 45%)',
-        idle: 'hsl(45, 93%, 47%)',
-        offline: 'hsl(0, 84%, 60%)',
+      if (!existingEntry) {
+        const markerElement = document.createElement('div');
+        markerElement.className = 'vehicle-marker';
+        markerElement.style.width = '32px';
+        markerElement.style.height = '32px';
+        markerElement.style.cursor = 'pointer';
+
+        const innerElement = document.createElement('div');
+        innerElement.style.width = '100%';
+        innerElement.style.height = '100%';
+        innerElement.style.background = getStatusColor(fleetVehicle.status);
+        innerElement.style.border = '3px solid white';
+        innerElement.style.borderRadius = '50%';
+        innerElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+        innerElement.style.display = 'flex';
+        innerElement.style.alignItems = 'center';
+        innerElement.style.justifyContent = 'center';
+        innerElement.style.fontWeight = 'bold';
+        innerElement.style.color = 'white';
+        innerElement.style.fontSize = '12px';
+        innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
+        markerElement.appendChild(innerElement);
+
+        const popup = new mapboxgl.Popup({ offset: 25 }).setText(fleetVehicle.name);
+        const marker = new mapboxgl.Marker(markerElement)
+          .setLngLat([fleetVehicle.lng, fleetVehicle.lat])
+          .setPopup(popup)
+          .addTo(map.current!);
+
+        markerElement.onclick = () => {
+          onSelectVehicle(selectedVehicleData);
+        };
+
+        markers.current[markerId] = {
+          marker,
+          element: markerElement,
+          innerElement,
+          popup,
+          lastLat: fleetVehicle.lat,
+          lastLng: fleetVehicle.lng,
+          lastStatus: fleetVehicle.status,
+          lastName: fleetVehicle.name,
+        };
+        return;
+      }
+
+      if (
+        existingEntry.lastLat !== fleetVehicle.lat ||
+        existingEntry.lastLng !== fleetVehicle.lng
+      ) {
+        existingEntry.marker.setLngLat([fleetVehicle.lng, fleetVehicle.lat]);
+        existingEntry.lastLat = fleetVehicle.lat;
+        existingEntry.lastLng = fleetVehicle.lng;
+      }
+
+      if (existingEntry.lastStatus !== fleetVehicle.status) {
+        existingEntry.innerElement.style.background = getStatusColor(fleetVehicle.status);
+        existingEntry.lastStatus = fleetVehicle.status;
+      }
+
+      if (existingEntry.lastName !== fleetVehicle.name) {
+        existingEntry.innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
+        existingEntry.popup.setText(fleetVehicle.name);
+        existingEntry.lastName = fleetVehicle.name;
+      }
+
+      existingEntry.element.style.cursor = 'pointer';
+      existingEntry.element.onclick = () => {
+        onSelectVehicle(selectedVehicleData);
       };
-
-      el.innerHTML = `
-        <div style="
-          width: 100%;
-          height: 100%;
-          background: ${statusColors[vehicle.status]};
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          color: white;
-          font-size: 12px;
-        ">
-          ${vehicle.name.charAt(0)}
-        </div>
-      `;
-
-      el.addEventListener('click', () => {
-        onSelectVehicle(vehicle);
-      });
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([vehicle.location.lng, vehicle.location.lat])
-        .addTo(map.current!);
-
-      markers.current[vehicle.id] = marker;
     });
-  }, [vehicles]);
+
+    Object.entries(markers.current).forEach(([markerId, markerEntry]) => {
+      if (!nextIds.has(markerId)) {
+        markerEntry.marker.remove();
+        delete markers.current[markerId];
+      }
+    });
+  }, [fleetData, onSelectVehicle, vehiclesById]);
 
   useEffect(() => {
     if (!map.current || !selectedVehicle) return;

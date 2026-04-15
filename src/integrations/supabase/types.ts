@@ -14,7 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      geofences: {
+        Row: {
+          center_lat: number
+          center_lng: number
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          radius_meters: number
+          updated_at: string
+        }
+        Insert: {
+          center_lat: number
+          center_lng: number
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          radius_meters?: number
+          updated_at?: string
+        }
+        Update: {
+          center_lat?: number
+          center_lng?: number
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          radius_meters?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          created_at: string
+          driver: string | null
+          fuel_type: string | null
+          id: string
+          identifier: string
+          make: string | null
+          model: string | null
+          name: string
+          plate_number: string | null
+          status: string
+          updated_at: string
+          vehicle_type: string | null
+          vin: string | null
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          driver?: string | null
+          fuel_type?: string | null
+          id?: string
+          identifier: string
+          make?: string | null
+          model?: string | null
+          name: string
+          plate_number?: string | null
+          status?: string
+          updated_at?: string
+          vehicle_type?: string | null
+          vin?: string | null
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          driver?: string | null
+          fuel_type?: string | null
+          id?: string
+          identifier?: string
+          make?: string | null
+          model?: string | null
+          name?: string
+          plate_number?: string | null
+          status?: string
+          updated_at?: string
+          vehicle_type?: string | null
+          vin?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

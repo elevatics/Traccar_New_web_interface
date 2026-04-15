@@ -6,7 +6,7 @@ import FleetMap from '@/components/FleetMap';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const MAPBOX_TOKEN = '[REDACTED_MAPBOX_TOKEN]';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 const Index = () => {
   const [vehicles] = useState<Vehicle[]>(mockVehicles);

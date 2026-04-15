@@ -82,6 +82,19 @@ const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange, onOpe
     return directions[index];
   };
 
+  const formatVehicleDate = (value?: string) => {
+    if (!value) {
+      return "N/A";
+    }
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "N/A";
+    }
+
+    return format(parsedDate, 'yyyy-MM-dd HH:mm:ss');
+  };
+
   const DetailRow = ({ label, value, icon: Icon }: { label: string; value: string | number; icon?: any }) => (
     <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700 last:border-0">
       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-sm">
@@ -205,15 +218,15 @@ const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange, onOpe
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 space-y-1">
               <DetailRow 
                 label="Server Time" 
-                value={format(new Date(vehicle.serverTime), 'yyyy-MM-dd HH:mm:ss')} 
+                value={formatVehicleDate(vehicle.serverTime)} 
               />
               <DetailRow 
                 label="Device Time" 
-                value={format(new Date(vehicle.deviceTime), 'yyyy-MM-dd HH:mm:ss')} 
+                value={formatVehicleDate(vehicle.deviceTime)} 
               />
               <DetailRow 
                 label="Fix Time" 
-                value={format(new Date(vehicle.fixTime), 'yyyy-MM-dd HH:mm:ss')} 
+                value={formatVehicleDate(vehicle.fixTime)} 
               />
               <DetailRow 
                 label="Outdated" 
