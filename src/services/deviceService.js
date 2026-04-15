@@ -1,4 +1,4 @@
-import { traccarGetCollection } from "../api/traccarRequest";
+import { traccarGet, traccarGetCollection, traccarPut } from "../api/traccarRequest";
 
 const normalizeDevice = (device) => ({
   id: device?.id ?? null,
@@ -18,4 +18,15 @@ export const getDevices = async () => {
     url: "/devices",
     normalize: normalizeDevice,
   });
+};
+
+/** Full device JSON as returned by Traccar (needed for PUT /devices/{id}). */
+export const getDeviceById = async (deviceId) => traccarGet(`/devices/${deviceId}`);
+
+export const updateDevice = async (device) => {
+  const payload = {
+    ...device,
+    attributes: device.attributes && typeof device.attributes === "object" ? device.attributes : {},
+  };
+  return traccarPut(`/devices/${device.id}`, payload);
 };

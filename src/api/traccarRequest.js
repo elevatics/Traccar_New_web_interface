@@ -26,6 +26,9 @@ export const traccarGet = (url, options = {}) =>
 export const traccarPost = (url, data, options = {}) =>
   traccarRequest({ method: "post", url, data, ...options });
 
+export const traccarPut = (url, data, options = {}) =>
+  traccarRequest({ method: "put", url, data, ...options });
+
 export const traccarDelete = (url, options = {}) =>
   traccarRequest({ method: "delete", url, ...options });
 
