@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Play,
   History,
@@ -84,6 +84,19 @@ export default function Trips() {
   const [tripRows, setTripRows] = useState<TripRow[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(true);
+  const selectedDeviceNames = useMemo(
+    () => selectedDeviceIds.map((id) => devices.find((d) => d.id === id)?.name ?? String(id)),
+    [devices, selectedDeviceIds]
+  );
+  const analytics = useMemo(() => {
+    const totalTrips = tripRows.length;
+    const totalDistanceM = tripRows.reduce((sum, trip) => sum + trip.distanceM, 0);
+    const totalDurationSec = tripRows.reduce((sum, trip) => sum + trip.durationSec, 0);
+    const avgSpeedKmh = totalTrips
+      ? tripRows.reduce((sum, trip) => sum + knotsToKmh(trip.averageSpeedKnots), 0) / totalTrips
+      : 0;
+    return { totalTrips, totalDistanceM, totalDurationSec, avgSpeedKmh };
+  }, [tripRows]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,8 +188,41 @@ export default function Trips() {
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Selected Vehicles</CardDescription>
+            <CardTitle className="text-2xl">{selectedDeviceIds.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground truncate">
+            {selectedDeviceNames.slice(0, 2).join(", ") || "No vehicles selected"}
+          </CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Loaded Trips</CardDescription>
+            <CardTitle className="text-2xl">{analytics.totalTrips}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Trips in current result set</CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Total Distance</CardDescription>
+            <CardTitle className="text-2xl">{(analytics.totalDistanceM / 1000).toFixed(1)} km</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Across loaded trips</CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Average Speed</CardDescription>
+            <CardTitle className="text-2xl">{analytics.avgSpeedKmh.toFixed(0)} km/h</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Computed from trip averages</CardContent>
+        </Card>
+      </div>
+
       {/* Vehicle & Time Selection */}
-      <Card>
+      <Card className="border-border/70">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>
@@ -277,7 +323,7 @@ export default function Trips() {
               type="button"
               onClick={() => void loadTrips()}
               disabled={tripsLoading || selectedDeviceIds.length === 0}
-              className="w-full sm:w-auto min-w-[140px]"
+              className="w-full sm:w-auto min-w-[160px]"
             >
               {tripsLoading ? (
                 <>
@@ -329,7 +375,7 @@ export default function Trips() {
                 const avgKmh = knotsToKmh(trip.averageSpeedKnots);
                 const maxKmh = knotsToKmh(trip.maxSpeedKnots);
                 return (
-                  <Card key={id}>
+                  <Card key={id} className="hover:shadow-lg transition-all border-border/70">
                     <CardHeader>
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -403,7 +449,7 @@ export default function Trips() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                         <div>
                           <p className="text-muted-foreground">Duration</p>
                           <p className="font-medium">{formatDuration(trip.durationSec)}</p>
@@ -418,8 +464,8 @@ export default function Trips() {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Route</p>
-                          <p className="font-medium line-clamp-2" title={`${trip.startAddress} → ${trip.endAddress}`}>
-                            {(trip.startAddress || "Start").slice(0, 24)}… → {(trip.endAddress || "End").slice(0, 24)}…
+                          <p className="font-medium line-clamp-2" title={`${trip.startAddress || "Start"} → ${trip.endAddress || "End"}`}>
+                            {trip.startAddress || "Start"} → {trip.endAddress || "End"}
                           </p>
                         </div>
                       </div>
@@ -442,33 +488,33 @@ export default function Trips() {
               </Card>
             ) : null}
             <div className="grid gap-4 md:grid-cols-3">
-              <Card>
+              <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle>Total trips</CardTitle>
                   <CardDescription>Loaded segment count</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{tripRows.length}</div>
+                  <div className="text-3xl font-bold">{analytics.totalTrips}</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle>Total distance</CardTitle>
                   <CardDescription>Sum of trip distances</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">
-                    {(tripRows.reduce((s, t) => s + t.distanceM, 0) / 1000).toFixed(1)} km
+                    {(analytics.totalDistanceM / 1000).toFixed(1)} km
                   </div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle>Total driving time</CardTitle>
                   <CardDescription>Sum of durations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{formatDuration(tripRows.reduce((s, t) => s + t.durationSec, 0))}</div>
+                  <div className="text-3xl font-bold">{formatDuration(analytics.totalDurationSec)}</div>
                 </CardContent>
               </Card>
             </div>

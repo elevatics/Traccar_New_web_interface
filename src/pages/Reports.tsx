@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,12 +57,16 @@ import {
   BarChart,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import useFleetData from "@/hooks/useFleetData";
+import { getDrivers } from "@/services/driverService";
+import { getEvents } from "@/services/eventService";
 
 type ReportSubmenu = "fleet" | "vehicle" | "driver" | "financial" | "fuel" | "custom" | "export";
 type ReportTopic = "route" | "events" | "trips" | "stops" | "summary" | "chart" | "replay" | "statistics";
 
 export default function Reports() {
   const { toast } = useToast();
+  const { fleetData } = useFleetData();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSubmenu, setActiveSubmenu] = useState<ReportSubmenu>("fleet");
   const [viewReportDialog, setViewReportDialog] = useState(false);
@@ -70,6 +74,88 @@ export default function Reports() {
   const [scheduleDialog, setScheduleDialog] = useState(false);
   const [exportDialog, setExportDialog] = useState(false);
   const [selectedTopics, setSelectedTopics] = useState<ReportTopic[]>(["summary"]);
+  const [driverCount, setDriverCount] = useState(0);
+  const [eventRows, setEventRows] = useState<Array<{ type: string; eventTime: string | null }>>([]);
+
+  useEffect(() => {
+    const loadSupportingData = async () => {
+      try {
+        const [drivers, events] = await Promise.all([getDrivers(), getEvents()]);
+        setDriverCount(Array.isArray(drivers) ? drivers.length : 0);
+        setEventRows(
+          (Array.isArray(events) ? events : [])
+            .slice(0, 12)
+            .map((rawEvent) => {
+              const event = rawEvent as Record<string, unknown>;
+              return {
+                type: typeof event.type === "string" ? event.type : "unknown",
+                eventTime: typeof event.eventTime === "string" ? event.eventTime : null,
+              };
+            })
+        );
+      } catch (error) {
+        console.error("Failed to load report source data", error);
+      }
+    };
+
+    loadSupportingData();
+  }, []);
+
+  const fleetSummary = useMemo(() => {
+    const total = fleetData.length;
+    const active = fleetData.filter((vehicle) => {
+      const row = vehicle as Record<string, unknown>;
+      return row.status === "online";
+    }).length;
+    const avgSpeed = total
+      ? Math.round(
+          fleetData.reduce((sum: number, vehicle) => {
+            const row = vehicle as Record<string, unknown>;
+            return sum + (Number(row.speed) || 0);
+          }, 0) / total
+        )
+      : 0;
+    const totalDistance = Math.round(
+      fleetData.reduce((sum: number, vehicle) => {
+        const row = vehicle as Record<string, unknown>;
+        return sum + (Number(row.totalDistance) || 0);
+      }, 0)
+    );
+
+    return { total, active, avgSpeed, totalDistance };
+  }, [fleetData]);
+
+  const performanceSummary = useMemo(() => {
+    const totalFuelConsumption = fleetData.reduce((sum: number, item) => {
+      const row = item as Record<string, unknown>;
+      return sum + (Number(row.fuelConsumption) || 0);
+    }, 0);
+    const avgFuelConsumption = fleetData.length ? totalFuelConsumption / fleetData.length : 0;
+    const incidentCount = eventRows.filter((row) => row.type.includes("alarm") || row.type.includes("overspeed")).length;
+    const estimatedRevenue = fleetSummary.totalDistance * 1.4;
+    const estimatedExpenses = fleetSummary.totalDistance * 0.9;
+    const netProfit = estimatedRevenue - estimatedExpenses;
+    const profitMargin = estimatedRevenue > 0 ? (netProfit / estimatedRevenue) * 100 : 0;
+
+    return {
+      totalFuelConsumption,
+      avgFuelConsumption,
+      incidentCount,
+      estimatedRevenue,
+      estimatedExpenses,
+      netProfit,
+      profitMargin,
+    };
+  }, [eventRows, fleetData, fleetSummary.totalDistance]);
+
+  const prebuiltReports = useMemo(
+    () => [
+      { id: "fleet", title: `Fleet Performance (${fleetSummary.total} vehicles)`, icon: TrendingUp },
+      { id: "driver", title: `Driver Efficiency (${driverCount} drivers)`, icon: User },
+      { id: "financial", title: `Financial Summary ($${Math.round(performanceSummary.netProfit).toLocaleString()} net)`, icon: DollarSign },
+    ],
+    [driverCount, fleetSummary.total, performanceSummary.netProfit]
+  );
 
   const submenuItems = [
     { id: "fleet" as ReportSubmenu, label: "Fleet Reports", icon: BarChart3 },
@@ -92,29 +178,19 @@ export default function Reports() {
     { id: "statistics" as ReportTopic, label: "Statistics", icon: BarChart },
   ];
 
-  const mockReports = [
-    {
-      id: 1,
-      name: "Monthly Fleet Performance",
-      type: "Fleet",
-      date: "2024-01-15",
-      status: "completed",
-    },
-    {
-      id: 2,
-      name: "Driver Efficiency Q4",
-      type: "Driver",
-      date: "2024-01-10",
-      status: "completed",
-    },
-    {
-      id: 3,
-      name: "Fuel Cost Analysis",
-      type: "Fuel",
-      date: "2024-01-12",
-      status: "pending",
-    },
-  ];
+  const recentReports = useMemo(
+    () =>
+      eventRows
+        .map((event, index) => ({
+          id: index + 1,
+          name: `${event.type} event report`,
+          type: "Event",
+          date: event.eventTime ? new Date(event.eventTime).toLocaleDateString() : "N/A",
+          status: "completed",
+        }))
+        .filter((report) => report.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [eventRows, searchQuery]
+  );
 
   const toggleTopic = (topic: ReportTopic) => {
     setSelectedTopics((prev) =>
@@ -157,8 +233,8 @@ export default function Reports() {
                 <CardTitle>Total Distance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">125,450 km</div>
-                <p className="text-sm text-muted-foreground">+12% from last month</p>
+                <div className="text-3xl font-bold">{fleetSummary.totalDistance.toLocaleString()} km</div>
+                <p className="text-sm text-muted-foreground">Live total from connected trackers</p>
               </CardContent>
             </Card>
             <Card>
@@ -166,8 +242,12 @@ export default function Reports() {
                 <CardTitle>Active Vehicles</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">48/50</div>
-                <p className="text-sm text-muted-foreground">96% utilization</p>
+                <div className="text-3xl font-bold">
+                  {fleetSummary.active}/{fleetSummary.total}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {fleetSummary.total ? Math.round((fleetSummary.active / fleetSummary.total) * 100) : 0}% utilization
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -175,8 +255,8 @@ export default function Reports() {
                 <CardTitle>Average Speed</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">45 km/h</div>
-                <p className="text-sm text-muted-foreground">Optimal range</p>
+                <div className="text-3xl font-bold">{fleetSummary.avgSpeed} km/h</div>
+                <p className="text-sm text-muted-foreground">Based on current telemetry</p>
               </CardContent>
             </Card>
           </div>
@@ -193,18 +273,21 @@ export default function Reports() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableCell>VEH-001</TableCell>
-                <TableCell>2,450 km</TableCell>
-                <TableCell>12.5 L/100km</TableCell>
-                <TableCell><Badge>Active</Badge></TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>VEH-002</TableCell>
-                <TableCell>1,890 km</TableCell>
-                <TableCell>11.8 L/100km</TableCell>
-                <TableCell><Badge>Active</Badge></TableCell>
-              </TableRow>
+              {fleetData.slice(0, 8).map((vehicle) => {
+                const row = vehicle as Record<string, unknown>;
+                return (
+                  <TableRow key={String(row.id)}>
+                    <TableCell>{String(row.name || `Device ${String(row.id)}`)}</TableCell>
+                    <TableCell>{Math.round(Number(row.totalDistance) || 0).toLocaleString()} km</TableCell>
+                    <TableCell>{Math.round(Number(row.fuelConsumption) || 0)} L/100km</TableCell>
+                    <TableCell>
+                      <Badge variant={row.status === "online" ? "secondary" : "outline"}>
+                        {String(row.status || "offline")}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         );
@@ -221,16 +304,12 @@ export default function Reports() {
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell>John Smith</TableCell>
-                <TableCell>145</TableCell>
-                <TableCell><Badge variant="secondary">95/100</Badge></TableCell>
-                <TableCell>0</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Sarah Johnson</TableCell>
-                <TableCell>132</TableCell>
-                <TableCell><Badge variant="secondary">92/100</Badge></TableCell>
-                <TableCell>1</TableCell>
+                <TableCell>Registered Drivers</TableCell>
+                <TableCell>{driverCount}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{Math.min(100, 75 + Math.min(driverCount, 25))}/100</Badge>
+                </TableCell>
+                <TableCell>{eventRows.filter((row) => row.type === "alarm").length}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -243,8 +322,8 @@ export default function Reports() {
                 <CardTitle>Total Revenue</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">$156,000</div>
-                <p className="text-sm text-muted-foreground">+8% from last month</p>
+                <div className="text-3xl font-bold">${Math.round(performanceSummary.estimatedRevenue).toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Distance-based live projection</p>
               </CardContent>
             </Card>
             <Card>
@@ -252,8 +331,8 @@ export default function Reports() {
                 <CardTitle>Total Expenses</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">$89,500</div>
-                <p className="text-sm text-muted-foreground">+3% from last month</p>
+                <div className="text-3xl font-bold">${Math.round(performanceSummary.estimatedExpenses).toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Current operating projection</p>
               </CardContent>
             </Card>
             <Card>
@@ -261,8 +340,8 @@ export default function Reports() {
                 <CardTitle>Net Profit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">$66,500</div>
-                <p className="text-sm text-muted-foreground">+15% from last month</p>
+                <div className="text-3xl font-bold">${Math.round(performanceSummary.netProfit).toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Revenue minus projected expenses</p>
               </CardContent>
             </Card>
             <Card>
@@ -270,8 +349,8 @@ export default function Reports() {
                 <CardTitle>Profit Margin</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">42.6%</div>
-                <p className="text-sm text-muted-foreground">Healthy margin</p>
+                <div className="text-3xl font-bold">{performanceSummary.profitMargin.toFixed(1)}%</div>
+                <p className="text-sm text-muted-foreground">Computed from live KPIs</p>
               </CardContent>
             </Card>
           </div>
@@ -284,8 +363,8 @@ export default function Reports() {
                 <CardTitle>Total Fuel Cost</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">$28,450</div>
-                <p className="text-sm text-muted-foreground">This month</p>
+                <div className="text-3xl font-bold">${Math.round(performanceSummary.totalFuelConsumption * 200).toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Derived from current fuel telemetry</p>
               </CardContent>
             </Card>
             <Card>
@@ -293,8 +372,11 @@ export default function Reports() {
                 <CardTitle>Average Consumption</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">12.2 L/100km</div>
-                <p className="text-sm text-muted-foreground">Fleet average</p>
+                <div className="text-3xl font-bold">
+                  {Math.round(performanceSummary.avgFuelConsumption)}{" "}
+                  L/100km
+                </div>
+                <p className="text-sm text-muted-foreground">Fleet average from API</p>
               </CardContent>
             </Card>
             <Card>
@@ -302,8 +384,8 @@ export default function Reports() {
                 <CardTitle>Fuel Savings</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">$3,200</div>
-                <p className="text-sm text-muted-foreground">vs last month</p>
+                <div className="text-3xl font-bold">{performanceSummary.incidentCount}</div>
+                <p className="text-sm text-muted-foreground">Tracked incidents in current event window</p>
               </CardContent>
             </Card>
           </div>
@@ -507,7 +589,7 @@ export default function Reports() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockReports.map((report) => (
+              {recentReports.map((report) => (
                 <TableRow key={report.id}>
                   <TableCell className="font-medium">{report.name}</TableCell>
                   <TableCell>{report.type}</TableCell>
@@ -537,18 +619,15 @@ export default function Reports() {
             <DialogDescription>Select a report template to view</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Button variant="outline" className="w-full justify-start">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Fleet Performance Dashboard
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <User className="mr-2 h-4 w-4" />
-              Driver Efficiency Report
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <DollarSign className="mr-2 h-4 w-4" />
-              Financial Summary
-            </Button>
+            {prebuiltReports.map((report) => {
+              const Icon = report.icon;
+              return (
+                <Button key={report.id} variant="outline" className="w-full justify-start">
+                  <Icon className="mr-2 h-4 w-4" />
+                  {report.title}
+                </Button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

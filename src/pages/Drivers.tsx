@@ -215,6 +215,14 @@ export default function Drivers() {
       .toUpperCase();
   };
 
+  const getContactStatus = (driver: DriverCard) => {
+    const hasPhone = Boolean(driver.phone);
+    const hasEmail = Boolean(driver.email);
+    if (hasPhone && hasEmail) return { label: "Complete", className: "text-green-600 bg-green-500/10 border-green-500/30" };
+    if (hasPhone || hasEmail) return { label: "Partial", className: "text-yellow-600 bg-yellow-500/10 border-yellow-500/30" };
+    return { label: "Needs Update", className: "text-red-600 bg-red-500/10 border-red-500/30" };
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -353,52 +361,57 @@ export default function Drivers() {
             <p className="text-muted-foreground col-span-full">No drivers match your search.</p>
           )}
           {filteredDrivers.map((driver) => (
-            <Card key={driver.traccarId}>
-              <CardHeader>
+            <Card key={driver.traccarId} className="hover:shadow-lg hover:-translate-y-0.5 transition-all border-border/70">
+              <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Avatar className="h-12 w-12 shrink-0">
+                    <Avatar className="h-12 w-12 shrink-0 ring-2 ring-primary/15">
                       <AvatarImage src={driver.avatar} />
                       <AvatarFallback>{getInitials(driver.name)}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <CardTitle className="text-lg truncate">{driver.name}</CardTitle>
+                      <CardTitle className="text-base truncate">{driver.name}</CardTitle>
                       <CardDescription className="truncate">
                         #{driver.traccarId} · {driver.id}
                       </CardDescription>
                     </div>
                   </div>
-                  {driver.vehicle !== "—" && (
-                    <Badge variant="outline" className="shrink-0">
-                      {driver.vehicle}
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className={`shrink-0 ${getContactStatus(driver).className}`}>
+                    {getContactStatus(driver).label}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Unique ID</p>
-                    <p className="font-medium break-all">{driver.uniqueId}</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Vehicle Assignment</p>
+                    <p className="font-medium mt-1 truncate">{driver.vehicle}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Vehicle</p>
-                    <p className="font-medium">{driver.vehicle}</p>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Unique ID</p>
+                    <p className="font-medium mt-1 truncate" title={driver.uniqueId}>
+                      {driver.uniqueId}
+                    </p>
                   </div>
-                  <div>
+                </div>
+
+                <div className="space-y-2 text-sm rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-muted-foreground">Phone</p>
-                    <p className="font-medium">{driver.phone || "—"}</p>
+                    <p className="font-medium truncate">{driver.phone || "—"}</p>
                   </div>
-                  <div>
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-muted-foreground">Email</p>
-                    <p className="font-medium break-all">{driver.email || "—"}</p>
+                    <p className="font-medium truncate" title={driver.email || "—"}>
+                      {driver.email || "—"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="flex-1 min-w-[100px]">
+                      <Button size="sm" variant="outline" className="flex-1 min-w-[110px]">
                         <Users className="h-4 w-4 mr-2" />
                         Details
                       </Button>
@@ -453,14 +466,14 @@ export default function Drivers() {
                     </DialogContent>
                   </Dialog>
 
-                  <Button size="sm" variant="outline" className="flex-1 min-w-[100px]" onClick={() => openContactEdit(driver)}>
+                  <Button size="sm" variant="outline" className="flex-1 min-w-[110px]" onClick={() => openContactEdit(driver)}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit contact
                   </Button>
 
-                  <Button size="sm" variant="outline" className="flex-1 min-w-[100px]" onClick={() => openVehicleDialog(driver)}>
+                  <Button size="sm" variant="outline" className="flex-1 min-w-[110px]" onClick={() => openVehicleDialog(driver)}>
                     <Link2 className="h-4 w-4 mr-2" />
-                    Assign vehicle
+                    {driver.vehicle === "—" ? "Assign vehicle" : "Reassign"}
                   </Button>
 
                   <Button

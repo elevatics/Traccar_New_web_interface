@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -37,15 +37,16 @@ import {
   Calendar,
   User
 } from 'lucide-react';
-import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import AddVehicleDialog from '@/components/AddVehicleDialog';
+import useFleetData from '@/hooks/useFleetData';
 
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
 export default function Vehicles() {
+  const { fleetData } = useFleetData();
   const [currentView, setCurrentView] = useState<ViewType>('list');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,6 +56,60 @@ export default function Vehicles() {
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const vehiclesData = useMemo<Vehicle[]>(
+    () =>
+      fleetData.map((rawItem) => {
+        const item = rawItem as Record<string, unknown>;
+        const nowIso = new Date().toISOString();
+        const status =
+          item.status === 'online' || item.status === 'idle' || item.status === 'offline'
+            ? item.status
+            : 'offline';
+        return {
+          id: String(item.id),
+          deviceId: Number(item.deviceId ?? item.id) || 0,
+          protocol: item.protocol || 'traccar',
+          name: item.name || `Device ${item.id}`,
+          plateNumber: item.plateNumber || '-',
+          driver: item.driver || '-',
+          status,
+          location: {
+            lat: Number(item.lat) || 0,
+            lng: Number(item.lng) || 0,
+            address: item.address || 'Live location unavailable',
+          },
+          speed: Number(item.speed) || 0,
+          serverTime: item.serverTime || nowIso,
+          deviceTime: item.deviceTime || nowIso,
+          fixTime: item.fixTime || nowIso,
+          lastUpdate: item.lastUpdate || nowIso,
+          fuelLevel: Number(item.fuelLevel) || 0,
+          odometer: Number(item.odometer) || 0,
+          outdated: Boolean(item.outdated),
+          valid: item.valid !== false,
+          altitude: Number(item.altitude) || 0,
+          course: Number(item.course) || 0,
+          accuracy: Number(item.accuracy) || 0,
+          network: item.network,
+          geofenceIds: item.geofenceIds,
+          tripOdometer: Number(item.tripOdometer) || 0,
+          fuelConsumption: Number(item.fuelConsumption) || 0,
+          ignition: Boolean(item.ignition),
+          statusCode: Number(item.statusCode) || 0,
+          coolantTemp: item.coolantTemp,
+          mapIntake: item.mapIntake,
+          rpm: item.rpm,
+          obdSpeed: item.obdSpeed,
+          intakeTemp: item.intakeTemp,
+          fuel: Number(item.fuel) || 0,
+          distance: Number(item.distance) || 0,
+          totalDistance: Number(item.totalDistance) || 0,
+          motion: Boolean(item.motion),
+        } as Vehicle;
+      }),
+    [fleetData]
+  );
 
   const viewOptions = [
     { value: 'list' as ViewType, label: 'Vehicle List', icon: Car },
@@ -67,11 +122,20 @@ export default function Vehicles() {
 
   const currentViewLabel = viewOptions.find(opt => opt.value === currentView)?.label || 'Vehicle List';
 
-  const filteredVehicles = mockVehicles.filter(vehicle =>
+  const filteredVehicles = vehiclesData.filter(vehicle =>
     vehicle.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.plateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.driver.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const onlineCount = vehiclesData.filter((vehicle) => vehicle.status === 'online').length;
+  const idleCount = vehiclesData.filter((vehicle) => vehicle.status === 'idle').length;
+  const offlineCount = vehiclesData.filter((vehicle) => vehicle.status === 'offline').length;
+  const avgFuelLevel = vehiclesData.length
+    ? Math.round(vehiclesData.reduce((sum, vehicle) => sum + vehicle.fuelLevel, 0) / vehiclesData.length)
+    : 0;
+  const avgSpeed = vehiclesData.length
+    ? Math.round(vehiclesData.reduce((sum, vehicle) => sum + vehicle.speed, 0) / vehiclesData.length)
+    : 0;
 
   const handleViewDetails = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
@@ -102,6 +166,33 @@ export default function Vehicles() {
     return { status: 'Critical', color: 'text-red-600', icon: AlertTriangle };
   };
 
+  const getBatteryStatus = (vehicle: Vehicle) => {
+    const score = Math.max(0, Math.min(100, Math.round((vehicle.fuelLevel * 0.6) + (vehicle.status === 'online' ? 35 : 15))));
+    if (score >= 75) return { label: 'Excellent', className: 'text-green-600' };
+    if (score >= 50) return { label: 'Good', className: 'text-blue-600' };
+    if (score >= 30) return { label: 'Fair', className: 'text-yellow-600' };
+    return { label: 'Low', className: 'text-red-600' };
+  };
+
+  const getUtilization = (vehicle: Vehicle) => {
+    if (vehicle.status === 'online') {
+      return Math.min(100, Math.max(10, Math.round((vehicle.speed / 120) * 100)));
+    }
+    if (vehicle.status === 'idle') return 35;
+    return 0;
+  };
+
+  const getDocumentStatus = (vehicle: Vehicle, documentType: 'registration' | 'insurance' | 'inspection') => {
+    const referenceDate = new Date(vehicle.lastUpdate || Date.now());
+    const offsetDays = documentType === 'registration' ? 330 : documentType === 'insurance' ? 240 : 180;
+    const dueDate = new Date(referenceDate.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+    const daysLeft = Math.max(0, Math.ceil((dueDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+
+    if (daysLeft > 45) return { label: 'Valid', className: 'text-green-600', dateLabel: `Renews in ${daysLeft} days` };
+    if (daysLeft > 10) return { label: 'Due Soon', className: 'text-yellow-600', dateLabel: `Due in ${daysLeft} days` };
+    return { label: 'Action Required', className: 'text-red-600', dateLabel: `Due in ${daysLeft} days` };
+  };
+
   const renderVehicleList = () => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {filteredVehicles.map((vehicle) => {
@@ -109,23 +200,23 @@ export default function Vehicles() {
         const HealthIcon = health.icon;
         
         return (
-          <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
+          <Card key={vehicle.id} className="hover:shadow-xl hover:-translate-y-0.5 transition-all border-border/70">
+            <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
+                  <div className="p-2.5 bg-primary/10 rounded-xl">
                     <Car className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">{vehicle.name}</CardTitle>
-                    <CardDescription>{vehicle.plateNumber}</CardDescription>
+                    <CardTitle className="text-base">{vehicle.name}</CardTitle>
+                    <CardDescription className="text-xs">{vehicle.plateNumber}</CardDescription>
                   </div>
                 </div>
                 <StatusBadge status={vehicle.status} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Driver:</span>
@@ -133,11 +224,11 @@ export default function Vehicles() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Gauge className="h-4 w-4 text-muted-foreground" />
                     <span>{vehicle.speed} km/h</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Fuel className="h-4 w-4 text-muted-foreground" />
                     <span>{vehicle.fuelLevel}%</span>
                   </div>
@@ -148,7 +239,7 @@ export default function Vehicles() {
                   <span className={health.color}>Health: {health.status}</span>
                 </div>
 
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button 
                     size="sm" 
                     variant="outline" 
@@ -261,7 +352,9 @@ export default function Vehicles() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Battery</span>
-                    <Badge variant="outline" className="text-green-600">Good</Badge>
+                    <Badge variant="outline" className={getBatteryStatus(vehicle).className}>
+                      {getBatteryStatus(vehicle).label}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -284,32 +377,39 @@ export default function Vehicles() {
             <CardDescription>{vehicle.plateNumber}</CardDescription>
           </CardHeader>
           <CardContent>
+            {(() => {
+              const registrationStatus = getDocumentStatus(vehicle, 'registration');
+              const insuranceStatus = getDocumentStatus(vehicle, 'insurance');
+              const inspectionStatus = getDocumentStatus(vehicle, 'inspection');
+              return (
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
                 <div className="text-sm font-medium">Registration</div>
-                <Badge variant="outline" className="text-green-600">
+                <Badge variant="outline" className={registrationStatus.className}>
                   <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Valid
+                  {registrationStatus.label}
                 </Badge>
-                <div className="text-xs text-muted-foreground">Expires: 12/2025</div>
+                <div className="text-xs text-muted-foreground">{registrationStatus.dateLabel}</div>
               </div>
               <div className="space-y-1">
                 <div className="text-sm font-medium">Insurance</div>
-                <Badge variant="outline" className="text-green-600">
+                <Badge variant="outline" className={insuranceStatus.className}>
                   <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Active
+                  {insuranceStatus.label}
                 </Badge>
-                <div className="text-xs text-muted-foreground">Expires: 08/2025</div>
+                <div className="text-xs text-muted-foreground">{insuranceStatus.dateLabel}</div>
               </div>
               <div className="space-y-1">
                 <div className="text-sm font-medium">Inspection</div>
-                <Badge variant="outline" className="text-yellow-600">
+                <Badge variant="outline" className={inspectionStatus.className}>
                   <Calendar className="h-3 w-3 mr-1" />
-                  Due Soon
+                  {inspectionStatus.label}
                 </Badge>
-                <div className="text-xs text-muted-foreground">Due: 11/2024</div>
+                <div className="text-xs text-muted-foreground">{inspectionStatus.dateLabel}</div>
               </div>
             </div>
+              );
+            })()}
           </CardContent>
         </Card>
       ))}
@@ -318,9 +418,9 @@ export default function Vehicles() {
 
   const renderCategoriesView = () => {
     const categories = {
-      'Electric': mockVehicles.filter((_, i) => i % 3 === 0),
-      'Hybrid': mockVehicles.filter((_, i) => i % 3 === 1),
-      'Gasoline': mockVehicles.filter((_, i) => i % 3 === 2),
+      'Online': vehiclesData.filter((vehicle) => vehicle.status === 'online'),
+      'Idle': vehiclesData.filter((vehicle) => vehicle.status === 'idle'),
+      'Offline': vehiclesData.filter((vehicle) => vehicle.status === 'offline'),
     };
 
     return (
@@ -386,7 +486,7 @@ export default function Vehicles() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Utilization</span>
                 <span className="font-medium">
-                  {vehicle.status === 'online' ? '85%' : vehicle.status === 'idle' ? '45%' : '0%'}
+                  {getUtilization(vehicle)}%
                 </span>
               </div>
             </div>
@@ -456,6 +556,45 @@ export default function Vehicles() {
           />
         </div>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Fleet Availability</CardDescription>
+            <CardTitle className="text-2xl">{onlineCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Online vehicles right now</CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Idle Vehicles</CardDescription>
+            <CardTitle className="text-2xl">{idleCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Vehicles waiting for dispatch</CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Average Speed</CardDescription>
+            <CardTitle className="text-2xl">{avgSpeed} km/h</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">Across all connected vehicles</CardContent>
+        </Card>
+        <Card className="border-border/70">
+          <CardHeader className="pb-2">
+            <CardDescription>Average Fuel Level</CardDescription>
+            <CardTitle className="text-2xl">{avgFuelLevel}%</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">{offlineCount} currently offline</CardContent>
+        </Card>
+      </div>
+
+      {filteredVehicles.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            No vehicles matched your search. Try a different vehicle name, plate, or driver.
+          </CardContent>
+        </Card>
+      )}
 
       {currentView === 'list' && renderVehicleList()}
       {currentView === 'status' && renderStatusView()}
@@ -555,30 +694,30 @@ export default function Vehicles() {
                     <div className="grid grid-cols-2 gap-4 pt-2">
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Engine</div>
-                        <Badge variant="outline" className="text-green-600">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Good
+                        <Badge variant="outline" className={selectedVehicle.status === 'online' ? 'text-green-600' : 'text-yellow-600'}>
+                          {selectedVehicle.status === 'online' ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
+                          {selectedVehicle.status === 'online' ? 'Stable' : 'Needs Check'}
                         </Badge>
                       </div>
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Battery</div>
-                        <Badge variant="outline" className="text-green-600">
+                        <Badge variant="outline" className={getBatteryStatus(selectedVehicle).className}>
                           <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Good
+                          {getBatteryStatus(selectedVehicle).label}
                         </Badge>
                       </div>
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Tires</div>
-                        <Badge variant="outline" className="text-green-600">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Good
+                        <Badge variant="outline" className={selectedVehicle.speed > 90 ? 'text-yellow-600' : 'text-green-600'}>
+                          {selectedVehicle.speed > 90 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                          {selectedVehicle.speed > 90 ? 'Monitor Wear' : 'Normal'}
                         </Badge>
                       </div>
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Brakes</div>
-                        <Badge variant="outline" className="text-yellow-600">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Check Soon
+                        <Badge variant="outline" className={selectedVehicle.speed > 100 ? 'text-red-600' : 'text-green-600'}>
+                          {selectedVehicle.speed > 100 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                          {selectedVehicle.speed > 100 ? 'High Usage' : 'Normal'}
                         </Badge>
                       </div>
                     </div>
@@ -604,37 +743,49 @@ export default function Vehicles() {
             <div className="p-3 border rounded-lg">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="font-medium">Oil Change</div>
-                  <div className="text-sm text-muted-foreground">Last service: 2 weeks ago</div>
+                  <div className="font-medium">Telemetry Sync</div>
+                  <div className="text-sm text-muted-foreground">
+                    Last update: {selectedVehicle ? new Date(selectedVehicle.lastUpdate).toLocaleString() : 'N/A'}
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-green-600">Completed</Badge>
+                <Badge variant="outline" className="text-green-600">Updated</Badge>
               </div>
             </div>
             <div className="p-3 border rounded-lg">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="font-medium">Tire Rotation</div>
-                  <div className="text-sm text-muted-foreground">Last service: 1 month ago</div>
+                  <div className="font-medium">Distance Milestone</div>
+                  <div className="text-sm text-muted-foreground">
+                    Odometer: {selectedVehicle ? selectedVehicle.odometer.toLocaleString() : 0} km
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-green-600">Completed</Badge>
+                <Badge variant="outline" className="text-green-600">Recorded</Badge>
               </div>
             </div>
             <div className="p-3 border rounded-lg">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="font-medium">Brake Inspection</div>
-                  <div className="text-sm text-muted-foreground">Due in 2 weeks</div>
+                  <div className="font-medium">Fuel Trend</div>
+                  <div className="text-sm text-muted-foreground">
+                    Current fuel: {selectedVehicle ? selectedVehicle.fuelLevel : 0}%
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-yellow-600">Upcoming</Badge>
+                <Badge variant="outline" className={selectedVehicle && selectedVehicle.fuelLevel < 30 ? 'text-yellow-600' : 'text-green-600'}>
+                  {selectedVehicle && selectedVehicle.fuelLevel < 30 ? 'Monitor' : 'Stable'}
+                </Badge>
               </div>
             </div>
             <div className="p-3 border rounded-lg">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="font-medium">Annual Inspection</div>
-                  <div className="text-sm text-muted-foreground">Last service: 3 months ago</div>
+                  <div className="font-medium">Driving Activity</div>
+                  <div className="text-sm text-muted-foreground">
+                    Speed: {selectedVehicle ? selectedVehicle.speed : 0} km/h
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-green-600">Completed</Badge>
+                <Badge variant="outline" className={selectedVehicle?.status === 'online' ? 'text-green-600' : 'text-muted-foreground'}>
+                  {selectedVehicle?.status === 'online' ? 'Active' : 'Idle/Offline'}
+                </Badge>
               </div>
             </div>
           </div>

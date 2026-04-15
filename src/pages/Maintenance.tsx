@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,8 +42,8 @@ import {
   User,
   ClipboardList
 } from 'lucide-react';
-import { mockVehicles } from '@/data/mockVehicles';
 import { useToast } from '@/hooks/use-toast';
+import useFleetData from '@/hooks/useFleetData';
 
 type ViewType = 'schedule' | 'in-progress' | 'completed' | 'create' | 'breakdown' | 'cost';
 
@@ -138,6 +138,7 @@ const mockMaintenanceOrders: MaintenanceOrder[] = [
 ];
 
 export default function Maintenance() {
+  const { fleetData } = useFleetData();
   const [currentView, setCurrentView] = useState<ViewType>('schedule');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +148,18 @@ export default function Maintenance() {
   const [costDialogOpen, setCostDialogOpen] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const { toast } = useToast();
+  const vehiclesData = useMemo(
+    () =>
+      fleetData.map((rawItem) => {
+        const item = rawItem as Record<string, unknown>;
+        return {
+          id: String(item.id),
+          name: String(item.name || `Device ${String(item.id)}`),
+          plateNumber: String(item.plateNumber || "-"),
+        };
+      }),
+    [fleetData]
+  );
 
   const viewOptions = [
     { value: 'schedule' as ViewType, label: 'Maintenance Schedule', icon: Wrench },
@@ -399,7 +412,7 @@ export default function Maintenance() {
                   <SelectValue placeholder="Select vehicle" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockVehicles.map((vehicle) => (
+                  {vehiclesData.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
                       {vehicle.name} - {vehicle.plateNumber}
                     </SelectItem>
@@ -583,7 +596,7 @@ export default function Maintenance() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockVehicles.map((vehicle) => {
+              {vehiclesData.map((vehicle) => {
                 const vehicleOrders = mockMaintenanceOrders.filter(o => o.vehicleId === vehicle.id);
                 const vehicleCost = vehicleOrders.reduce((sum, order) => sum + (order.cost || 0), 0);
                 
@@ -755,7 +768,7 @@ export default function Maintenance() {
                   <SelectValue placeholder="Select vehicle" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockVehicles.map((vehicle) => (
+                  {vehiclesData.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
                       {vehicle.name} - {vehicle.plateNumber}
                     </SelectItem>
@@ -849,7 +862,7 @@ export default function Maintenance() {
                   <SelectValue placeholder="Select vehicle" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockVehicles.map((vehicle) => (
+                  {vehiclesData.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
                       {vehicle.name}
                     </SelectItem>
