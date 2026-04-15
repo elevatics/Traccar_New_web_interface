@@ -46,7 +46,7 @@ import useFleetData from '@/hooks/useFleetData';
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
 export default function Vehicles() {
-  const { fleetData } = useFleetData();
+  const { fleetData, refresh } = useFleetData();
   const [currentView, setCurrentView] = useState<ViewType>('list');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -792,7 +792,11 @@ export default function Vehicles() {
         </DialogContent>
       </Dialog>
 
-      <AddVehicleDialog open={addVehicleOpen} onOpenChange={setAddVehicleOpen} />
+      <AddVehicleDialog
+        open={addVehicleOpen}
+        onOpenChange={setAddVehicleOpen}
+        onVehicleAdded={refresh}
+      />
     </div>
   );
 }

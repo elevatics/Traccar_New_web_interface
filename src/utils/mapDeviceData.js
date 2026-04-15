@@ -26,18 +26,14 @@ export const mapDeviceData = (devices = [], positions = []) => {
   };
 
   return devices
-    .filter((device) => positionByDeviceId.has(device.id))
     .map((device) => {
       const position = positionByDeviceId.get(device.id);
       const deviceAttributes = device.attributes || {};
-      const positionAttributes = position.attributes || {};
-      const lat = Number(position.latitude);
-      const lng = Number(position.longitude);
-      const speed = asNumber(position.speed);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return null;
-      }
+      const positionAttributes = position?.attributes || {};
+      const lat = Number(position?.latitude);
+      const lng = Number(position?.longitude);
+      const hasValidCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+      const speed = asNumber(position?.speed);
 
       const motion = asBoolean(
         positionAttributes.motion ?? deviceAttributes.motion,
@@ -61,28 +57,28 @@ export const mapDeviceData = (devices = [], positions = []) => {
           "-",
         driver: deviceAttributes.driver || "-",
         status: deriveStatus(device.status, speed, motion),
-        lat,
-        lng,
+        lat: hasValidCoordinates ? lat : 0,
+        lng: hasValidCoordinates ? lng : 0,
         address:
-          position.address ||
+          position?.address ||
           positionAttributes.address ||
-          "Live location unavailable",
+          "No GPS position yet",
         speed,
-        serverTime: position.serverTime || null,
-        deviceTime: position.deviceTime || null,
-        fixTime: position.fixTime || null,
-        lastUpdate: device.lastUpdate || position.fixTime || null,
+        serverTime: position?.serverTime || null,
+        deviceTime: position?.deviceTime || null,
+        fixTime: position?.fixTime || null,
+        lastUpdate: device.lastUpdate || position?.fixTime || null,
         fuelLevel: asNumber(
           positionAttributes.fuelLevel ?? deviceAttributes.fuelLevel
         ),
         odometer: asNumber(
           positionAttributes.odometer ?? deviceAttributes.odometer
         ),
-        outdated: asBoolean(position.outdated, false),
-        valid: asBoolean(position.valid, true),
-        altitude: asNumber(position.altitude),
-        course: asNumber(position.course),
-        accuracy: asNumber(position.accuracy),
+        outdated: asBoolean(position?.outdated, false),
+        valid: asBoolean(position?.valid, true),
+        altitude: asNumber(position?.altitude),
+        course: asNumber(position?.course),
+        accuracy: asNumber(position?.accuracy),
         network:
           positionAttributes.network ??
           deviceAttributes.network ??
@@ -121,8 +117,7 @@ export const mapDeviceData = (devices = [], positions = []) => {
         ),
         motion,
       };
-    })
-    .filter(Boolean);
+    });
 };
 
 export default mapDeviceData;

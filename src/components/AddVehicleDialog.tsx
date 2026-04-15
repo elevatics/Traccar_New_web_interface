@@ -4,22 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
+import { createDevice } from '@/services/deviceService';
 
 interface AddVehicleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onVehicleAdded?: () => Promise<void> | void;
 }
 
 const vehicleTypes = ['Car', 'Truck', 'Van', 'Bus', 'SUV', 'Motorcycle', 'Trailer', 'Heavy Equipment'];
 const fuelTypes = ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG'];
 
-export default function AddVehicleDialog({ open, onOpenChange }: AddVehicleDialogProps) {
+export default function AddVehicleDialog({ open, onOpenChange, onVehicleAdded }: AddVehicleDialogProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -47,27 +46,35 @@ export default function AddVehicleDialog({ open, onOpenChange }: AddVehicleDialo
     }
 
     setLoading(true);
-    const { error } = await supabase.from('vehicles').insert({
-      name: form.name.trim(),
-      identifier: form.identifier.trim(),
-      plate_number: form.plate_number.trim() || null,
-      driver: form.driver.trim() || null,
-      vehicle_type: form.vehicle_type,
-      make: form.make.trim() || null,
-      model: form.model.trim() || null,
-      year: form.year ? parseInt(form.year) : null,
-      vin: form.vin.trim() || null,
-      fuel_type: form.fuel_type,
-    });
-    setLoading(false);
+    try {
+      await createDevice({
+        name: form.name,
+        uniqueId: form.identifier,
+        category: form.vehicle_type,
+        model: [form.make.trim(), form.model.trim(), form.year.trim()].filter(Boolean).join(' '),
+        attributes: {
+          plateNumber: form.plate_number.trim() || undefined,
+          driver: form.driver.trim() || undefined,
+          vin: form.vin.trim() || undefined,
+          fuelType: form.fuel_type,
+        },
+      });
 
-    if (error) {
-      toast({ title: 'Failed to add vehicle', description: error.message, variant: 'destructive' });
+      if (onVehicleAdded) {
+        await onVehicleAdded();
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to add vehicle',
+        description: error?.message || 'Unable to create device in Traccar',
+        variant: 'destructive',
+      });
+      setLoading(false);
       return;
     }
 
-    toast({ title: 'Vehicle added successfully' });
-    queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    setLoading(false);
+    toast({ title: 'Vehicle added successfully in Traccar' });
     setForm({ name: '', identifier: '', plate_number: '', driver: '', vehicle_type: 'car', make: '', model: '', year: '', vin: '', fuel_type: 'petrol' });
     onOpenChange(false);
   };

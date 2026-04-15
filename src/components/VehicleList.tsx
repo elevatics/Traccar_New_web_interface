@@ -88,7 +88,7 @@ const VehicleList = ({
   onFilterChange,
 }: VehicleListProps) => {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
-  const { fleetData, loading, error } = useFleetData();
+  const { fleetData, loading, error, refresh } = useFleetData();
 
   const fleetVehicles = useMemo(
     () =>
@@ -243,7 +243,10 @@ const VehicleList = ({
               )}
             >
               <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/50 transition-colors">
+                <div
+                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => onSelectVehicle(getVehicleForSelection(vehicle))}
+                >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <StatusBadge status={vehicle.status as VehicleStatus} showLabel={false} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -284,7 +287,11 @@ const VehicleList = ({
           </Collapsible>
         ))}
       </div>
-      <AddVehicleDialog open={addVehicleOpen} onOpenChange={setAddVehicleOpen} />
+      <AddVehicleDialog
+        open={addVehicleOpen}
+        onOpenChange={setAddVehicleOpen}
+        onVehicleAdded={refresh}
+      />
     </div>
   );
 };

@@ -133,6 +133,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
+  const hasAutoCentered = useRef(false);
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
   const [showAIChat, setShowAIChat] = useState(false);
@@ -178,6 +179,26 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       map.current?.remove();
     };
   }, [apiToken]);
+
+  useEffect(() => {
+    if (!map.current || !mapContainer.current) return;
+
+    const resizeMap = () => {
+      map.current?.resize();
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      resizeMap();
+    });
+
+    resizeObserver.observe(mapContainer.current);
+    window.addEventListener('resize', resizeMap);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', resizeMap);
+    };
+  }, []);
 
   useEffect(() => {
     if (!map.current) return;
@@ -328,6 +349,36 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       duration: 1500,
     });
   }, [selectedVehicle]);
+
+  useEffect(() => {
+    if (!map.current || hasAutoCentered.current || selectedVehicle) return;
+
+    const validFleetCoords = (fleetData as FleetPoint[])
+      .map((item) => ({
+        lat: Number(item.lat),
+        lng: Number(item.lng),
+      }))
+      .filter(
+        ({ lat, lng }) =>
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          Math.abs(lat) <= 90 &&
+          Math.abs(lng) <= 180 &&
+          !(lat === 0 && lng === 0)
+      );
+
+    if (validFleetCoords.length === 0) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    validFleetCoords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
+
+    map.current.fitBounds(bounds, {
+      padding: 80,
+      maxZoom: 14,
+      duration: 1200,
+    });
+    hasAutoCentered.current = true;
+  }, [fleetData, selectedVehicle]);
 
   useEffect(() => {
     if (!map.current) return;
