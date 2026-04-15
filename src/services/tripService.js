@@ -44,6 +44,38 @@ export const getTripsReport = async ({ deviceIds, from, to }) => {
   return Array.isArray(data) ? data : [];
 };
 
+/**
+ * Traccar ReportTrips.duration is documented as seconds, but some servers/versions
+ * return milliseconds. Pick seconds vs ms/1000 by best match to start/end wall time.
+ */
+export const normalizeDurationSec = (t) => {
+  const raw = Number(t.duration);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 0;
+  }
+  const start = Date.parse(t.startTime);
+  const end = Date.parse(t.endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return raw > 1e7 ? Math.round(raw / 1000) : Math.round(raw);
+  }
+  const spanSec = (end - start) / 1000;
+  const asSeconds = raw;
+  const fromMillis = raw / 1000;
+  const tol = Math.max(60, spanSec * 0.08);
+  const errSec = Math.abs(asSeconds - spanSec);
+  const errMs = Math.abs(fromMillis - spanSec);
+  if (fromMillis > 0 && errMs <= errSec && errMs <= tol) {
+    return Math.round(fromMillis);
+  }
+  if (errSec <= tol) {
+    return Math.round(asSeconds);
+  }
+  if (spanSec > 120 && asSeconds > spanSec * 50) {
+    return Math.round(fromMillis);
+  }
+  return Math.round(asSeconds);
+};
+
 export const normalizeTrip = (t) => ({
   deviceId: t.deviceId,
   deviceName: t.deviceName ?? `Device ${t.deviceId}`,
@@ -58,7 +90,7 @@ export const normalizeTrip = (t) => ({
   endLat: t.endLat,
   endLon: t.endLon,
   distanceM: Number(t.distance) || 0,
-  durationSec: Number(t.duration) || 0,
+  durationSec: normalizeDurationSec(t),
   averageSpeedKnots: Number(t.averageSpeed) || 0,
   maxSpeedKnots: Number(t.maxSpeed) || 0,
   spentFuel: t.spentFuel != null ? Number(t.spentFuel) : null,
