@@ -59,10 +59,7 @@ export const mapDeviceData = (devices = [], positions = []) => {
           deviceAttributes.plate ||
           deviceAttributes.licensePlate ||
           "-",
-        driver:
-          deviceAttributes.driver ||
-          device.contact ||
-          "-",
+        driver: deviceAttributes.driver || "-",
         status: deriveStatus(device.status, speed, motion),
         lat,
         lng,
