@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Download,
   Play,
   History,
   BarChart3,
@@ -173,11 +172,6 @@ export default function Trips() {
               </SelectItem>
             </SelectContent>
           </Select>
-          
-          <Button variant="outline" onClick={() => void loadTrips()} disabled={tripsLoading || selectedDeviceIds.length === 0}>
-            {tripsLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-            Load trips
-          </Button>
         </div>
       </div>
 
@@ -277,6 +271,24 @@ export default function Trips() {
               </div>
             </div>
           )}
+
+          <div className="flex flex-col sm:flex-row sm:justify-end pt-4 border-t">
+            <Button
+              type="button"
+              onClick={() => void loadTrips()}
+              disabled={tripsLoading || selectedDeviceIds.length === 0}
+              className="w-full sm:w-auto min-w-[140px]"
+            >
+              {tripsLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                "Load trips"
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -337,10 +349,7 @@ export default function Trips() {
                           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Trip — {trip.deviceName}</DialogTitle>
-                              <DialogDescription>
-                                Traccar ReportTrips; map uses <code className="text-xs">GET /api/reports/route</code> for
-                                the same time window.
-                              </DialogDescription>
+                              <DialogDescription>Trip summary and route map.</DialogDescription>
                             </DialogHeader>
                             <div className="space-y-3 text-sm">
                               <div>
