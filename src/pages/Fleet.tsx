@@ -15,31 +15,74 @@ import {
 } from 'lucide-react';
 import FleetMap from '@/components/FleetMap';
 import Vehicle360View from '@/components/Vehicle360View';
-import VehicleList from '@/components/VehicleList';
 import GeofenceManager from '@/components/GeofenceManager';
 import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
 import { getEvents } from '@/services/eventService';
+import useFleetData from '@/hooks/useFleetData';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
 export default function Fleet() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [liveView, setLiveView] = useState(false);
-  const [selectedVehicles, setSelectedVehicles] = useState<Vehicle[]>([mockVehicles[0]]);
   const [alerts, setAlerts] = useState<{ type: string; deviceId: number | null; eventTime: string | null }[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsError, setAlertsError] = useState<string | null>(null);
+  const { fleetData, loading: fleetLoading, error: fleetError } = useFleetData();
 
-  const toggleVehicleSelection = (vehicle: Vehicle) => {
-    setSelectedVehicles(prev => {
-      const exists = prev.find(v => v.id === vehicle.id);
-      if (exists) {
-        return prev.filter(v => v.id !== vehicle.id);
-      }
-      return [...prev, vehicle];
-    });
-  };
+  const liveVehicles = useMemo<Vehicle[]>(
+    () =>
+      fleetData.map((item: any) => {
+        const nowIso = new Date().toISOString();
+        const status =
+          item.status === 'online' || item.status === 'idle' || item.status === 'offline'
+            ? item.status
+            : 'offline';
+        return {
+          id: String(item.id),
+          deviceId: Number(item.deviceId ?? item.id) || 0,
+          protocol: item.protocol || 'traccar',
+          name: item.name || `Device ${item.id}`,
+          plateNumber: item.plateNumber || '-',
+          driver: item.driver || '-',
+          status,
+          location: {
+            lat: Number(item.lat) || 0,
+            lng: Number(item.lng) || 0,
+            address: item.address || 'Live location unavailable',
+          },
+          speed: Number(item.speed) || 0,
+          serverTime: item.serverTime || nowIso,
+          deviceTime: item.deviceTime || nowIso,
+          fixTime: item.fixTime || nowIso,
+          lastUpdate: item.lastUpdate || nowIso,
+          fuelLevel: Number(item.fuelLevel) || 0,
+          odometer: Number(item.odometer) || 0,
+          outdated: Boolean(item.outdated),
+          valid: item.valid !== false,
+          altitude: Number(item.altitude) || 0,
+          course: Number(item.course) || 0,
+          accuracy: Number(item.accuracy) || 0,
+          network: item.network,
+          geofenceIds: item.geofenceIds,
+          tripOdometer: Number(item.tripOdometer) || 0,
+          fuelConsumption: Number(item.fuelConsumption) || 0,
+          ignition: Boolean(item.ignition),
+          statusCode: Number(item.statusCode) || 0,
+          coolantTemp: item.coolantTemp,
+          mapIntake: item.mapIntake,
+          rpm: item.rpm,
+          obdSpeed: item.obdSpeed,
+          intakeTemp: item.intakeTemp,
+          fuel: Number(item.fuel) || 0,
+          distance: Number(item.distance) || 0,
+          totalDistance: Number(item.totalDistance) || 0,
+          motion: Boolean(item.motion),
+        } as Vehicle;
+      }),
+    [fleetData]
+  );
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -112,7 +155,12 @@ export default function Fleet() {
                   <div className="space-y-4">
                     {/* Quick Actions */}
                     <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setSelectedVehicle(mockVehicles[0])}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedVehicle(liveVehicles[0] || mockVehicles[0])}
+                        disabled={liveVehicles.length === 0 && fleetLoading}
+                      >
                         <Eye className="h-4 w-4 mr-2" />
                         View on Map
                       </Button>
@@ -141,7 +189,7 @@ export default function Fleet() {
                           {/* Map takes 2/3 */}
                           <div className="col-span-2 border rounded-lg overflow-hidden">
                             <FleetMap 
-                              vehicles={mockVehicles} 
+                              vehicles={liveVehicles} 
                               selectedVehicle={selectedVehicle}
                               onSelectVehicle={setSelectedVehicle}
                               onClearSelection={() => setSelectedVehicle(null)}
@@ -150,12 +198,12 @@ export default function Fleet() {
                           </div>
                           {/* 360 View takes 1/3 */}
                           <div className="col-span-1">
-                            <Vehicle360View vehicle={selectedVehicle || mockVehicles[0]} />
+                            <Vehicle360View vehicle={selectedVehicle || liveVehicles[0] || mockVehicles[0]} />
                           </div>
                         </>
                       ) : (
                         <FleetMap 
-                          vehicles={mockVehicles} 
+                          vehicles={liveVehicles} 
                           selectedVehicle={selectedVehicle}
                           onSelectVehicle={setSelectedVehicle}
                           onClearSelection={() => setSelectedVehicle(null)}
@@ -177,21 +225,25 @@ export default function Fleet() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {liveView && (
-                    <div className="text-sm text-muted-foreground mb-2">
-                      Click on vehicles to add/remove from live view tracking
-                    </div>
+                  {fleetLoading && (
+                    <p className="text-sm text-muted-foreground">Loading live vehicle status...</p>
                   )}
-                  {mockVehicles.map((vehicle) => (
+                  {!fleetLoading && fleetError && (
+                    <p className="text-sm text-destructive">{fleetError}</p>
+                  )}
+                  {!fleetLoading && !fleetError && liveVehicles.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No live vehicle status available.
+                    </p>
+                  )}
+                  {!fleetLoading && !fleetError && liveVehicles.map((vehicle) => (
                     <div 
                       key={vehicle.id} 
                       className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
-                        liveView && selectedVehicles.find(v => v.id === vehicle.id) 
-                          ? 'border-primary bg-primary/5' 
-                          : ''
+                        selectedVehicle?.id === vehicle.id ? 'border-primary bg-primary/5' : ''
                       }`}
-                      onClick={() => liveView && toggleVehicleSelection(vehicle)}
-                      style={{ cursor: liveView ? 'pointer' : 'default' }}
+                      onClick={() => setSelectedVehicle(vehicle)}
+                      style={{ cursor: 'pointer' }}
                     >
                       <div className="flex justify-between items-start">
                         <div>
@@ -212,6 +264,9 @@ export default function Fleet() {
                         <div>Fuel: {vehicle.fuelLevel}%</div>
                         <div>Odometer: {vehicle.odometer} km</div>
                       </div>
+                      <p className="mt-2 text-xs text-muted-foreground truncate">
+                        {vehicle.location.address}
+                      </p>
                     </div>
                   ))}
                 </div>

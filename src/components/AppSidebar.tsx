@@ -37,7 +37,7 @@ const menuItems = [
 { title: "Vehicles", url: "/vehicles", icon: Car },
 { title: "Maintenance", url: "/maintenance", icon: Wrench },
 { title: "Reports", url: "/reports", icon: FileText },
-{ title: "Finance", url: "/finance", icon: DollarSign },
+// { title: "Finance", url: "/finance", icon: DollarSign },
 { title: "Settings", url: "/settings", icon: Settings }];
 
 
