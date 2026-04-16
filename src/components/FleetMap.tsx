@@ -481,7 +481,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
 
       {/* AI Chat Window */}
       {showAIChat && aiChatVehicle && (
-        <div className="absolute z-20 top-4 right-4">
+        <div className="absolute top-4 right-4 z-[70]">
           <VehicleAIChat 
             vehicle={aiChatVehicle} 
             onClose={() => {
