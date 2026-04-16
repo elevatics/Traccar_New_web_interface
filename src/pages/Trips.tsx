@@ -152,16 +152,16 @@ export default function Trips() {
   }, [selectedDeviceIds, timeRange, customFrom, customTo]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold">Trip Management</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold">Trip Management</h2>
           <p className="text-muted-foreground">Manage and track vehicle trips</p>
         </div>
         
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center w-full sm:w-auto">
           <Select value={currentView} onValueChange={setCurrentView}>
-            <SelectTrigger className="w-[200px] bg-background">
+            <SelectTrigger className="w-full sm:w-[200px] bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
@@ -412,7 +412,7 @@ export default function Trips() {
                                 <p>{new Date(trip.endTime).toLocaleString()}</p>
                                 <p className="text-muted-foreground break-words">{trip.endAddress || "—"}</p>
                               </div>
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                   <Label>Duration</Label>
                                   <p>{formatDuration(trip.durationSec)}</p>

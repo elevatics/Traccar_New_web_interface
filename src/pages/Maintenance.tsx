@@ -355,29 +355,29 @@ export default function Maintenance() {
           return (
             <Card key={order.id}>
               <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
                     <TypeIcon className="h-6 w-6 text-muted-foreground" />
                     <div>
                       <h4 className="font-semibold">{order.vehicleName}</h4>
                       <p className="text-sm text-muted-foreground">{order.description}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:items-center lg:gap-6">
                     {order.technician && (
-                      <div className="text-right">
+                      <div className="text-left lg:text-right">
                         <div className="text-sm text-muted-foreground">Technician</div>
                         <div className="font-medium">{order.technician}</div>
                       </div>
                     )}
-                    <div className="text-right">
+                    <div className="text-left lg:text-right">
                       <div className="text-sm text-muted-foreground">Completed</div>
                       <div className="font-medium">
                         {order.completedDate && new Date(order.completedDate).toLocaleDateString()}
                       </div>
                     </div>
                     {order.cost && (
-                      <div className="text-right">
+                      <div className="text-left lg:text-right">
                         <div className="text-sm text-muted-foreground">Cost</div>
                         <div className="font-medium">${order.cost}</div>
                       </div>
@@ -398,7 +398,7 @@ export default function Maintenance() {
 
   const renderCreateOrderView = () => {
     return (
-      <Card className="max-w-2xl mx-auto">
+      <Card className="mx-auto w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Create New Maintenance Order</CardTitle>
           <CardDescription>Schedule maintenance for your fleet vehicles</CardDescription>
@@ -455,7 +455,7 @@ export default function Maintenance() {
                 rows={4}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="date">Scheduled Date</Label>
                 <Input id="date" type="date" />
@@ -603,17 +603,17 @@ export default function Maintenance() {
                 if (vehicleCost === 0) return null;
                 
                 return (
-                  <div key={vehicle.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
+                  <div key={vehicle.id} className="flex flex-col gap-3 p-4 border rounded-lg sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
                       <Car className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <h4 className="font-semibold">{vehicle.name}</h4>
+                      <div className="min-w-0">
+                        <h4 className="font-semibold truncate">{vehicle.name}</h4>
                         <p className="text-sm text-muted-foreground">
                           {vehicleOrders.length} maintenance order{vehicleOrders.length !== 1 ? 's' : ''}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-lg font-semibold">${vehicleCost.toLocaleString()}</div>
                       <div className="text-sm text-muted-foreground">
                         {((vehicleCost / totalCost) * 100).toFixed(1)}% of total
@@ -676,26 +676,26 @@ export default function Maintenance() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-2xl font-bold">Maintenance</h2>
           
-          <div className="flex items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {/* Quick Actions */}
-            <Button variant="outline" size="sm" onClick={handleScheduleMaintenance}>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleScheduleMaintenance}>
               <Calendar className="h-4 w-4 mr-2" />
               Schedule
             </Button>
-            <Button variant="outline" size="sm" onClick={handleViewHistory}>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleViewHistory}>
               <History className="h-4 w-4 mr-2" />
               History
             </Button>
-            <Button variant="outline" size="sm" onClick={handleCreateOrder}>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleCreateOrder}>
               <Plus className="h-4 w-4 mr-2" />
               Create Order
             </Button>
-            <Button variant="outline" size="sm" onClick={handleTrackCosts}>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleTrackCosts}>
               <TrendingUp className="h-4 w-4 mr-2" />
               Costs
             </Button>
@@ -703,12 +703,12 @@ export default function Maintenance() {
             {/* View Selector */}
             <Popover open={viewDropdownOpen} onOpenChange={setViewDropdownOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[220px] justify-between">
+                <Button variant="outline" className="col-span-2 w-full justify-between sm:w-[220px]">
                   {currentViewLabel}
                   <ChevronDown className="h-4 w-4 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[220px] p-2">
+              <PopoverContent className="w-[260px] max-w-[calc(100vw-2rem)] p-2">
                 <div className="space-y-1">
                   {viewOptions.map((option) => {
                     const Icon = option.icon;
@@ -824,7 +824,7 @@ export default function Maintenance() {
               .filter(o => o.status === 'completed')
               .map((order) => (
                 <div key={order.id} className="p-3 border rounded-lg">
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="font-medium">{order.vehicleName}</div>
                       <div className="text-sm text-muted-foreground">{order.description}</div>
@@ -832,7 +832,7 @@ export default function Maintenance() {
                         Completed: {order.completedDate && new Date(order.completedDate).toLocaleDateString()}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="font-medium">${order.cost}</div>
                       {order.technician && (
                         <div className="text-xs text-muted-foreground">{order.technician}</div>
@@ -902,7 +902,7 @@ export default function Maintenance() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="p-4 bg-primary/5 rounded-lg">
                 <div className="text-sm text-muted-foreground">Total Spent</div>
                 <div className="text-2xl font-bold">

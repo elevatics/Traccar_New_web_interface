@@ -117,11 +117,11 @@ export default function Fleet() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6 border-b bg-background">
-        <h2 className="text-2xl font-bold mb-4">Fleet - Live Map & Status</h2>
+      <div className="p-4 sm:p-6 border-b bg-background">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Fleet - Live Map & Status</h2>
         
         <Tabs defaultValue="live-map" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="w-full overflow-x-auto justify-start sm:grid sm:grid-cols-5">
             <TabsTrigger value="live-map" className="flex items-center gap-2">
               <Map className="h-4 w-4" />
               <span className="hidden sm:inline">Live Map</span>
@@ -183,11 +183,11 @@ export default function Fleet() {
                     </div>
 
                     {/* Map + 360 View Layout */}
-                    <div className={liveView ? "grid grid-cols-3 gap-4 h-[600px]" : "h-[600px]"}>
+                    <div className={liveView ? "grid grid-cols-1 xl:grid-cols-3 gap-4 h-auto xl:h-[600px]" : "h-[55vh] min-h-[360px] sm:h-[600px]"}>
                       {liveView ? (
                         <>
                           {/* Map takes 2/3 */}
-                          <div className="col-span-2 border rounded-lg overflow-hidden">
+                          <div className="col-span-1 xl:col-span-2 border rounded-lg overflow-hidden h-[50vh] min-h-[320px] xl:h-auto">
                             <FleetMap 
                               vehicles={liveVehicles} 
                               selectedVehicle={selectedVehicle}
@@ -197,7 +197,7 @@ export default function Fleet() {
                             />
                           </div>
                           {/* 360 View takes 1/3 */}
-                          <div className="col-span-1">
+                          <div className="col-span-1 h-[50vh] min-h-[320px] xl:h-auto">
                             <Vehicle360View vehicle={selectedVehicle || liveVehicles[0] || mockVehicles[0]} />
                           </div>
                         </>
@@ -259,7 +259,7 @@ export default function Fleet() {
                           {vehicle.status}
                         </div>
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                         <div>Speed: {vehicle.speed} km/h</div>
                         <div>Fuel: {vehicle.fuelLevel}%</div>
                         <div>Odometer: {vehicle.odometer} km</div>

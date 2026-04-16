@@ -6,6 +6,7 @@ import FleetMap from '@/components/FleetMap';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useFleetData from '@/hooks/useFleetData';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -68,11 +69,12 @@ const Index = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<VehicleStatus | 'all'>('all');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="h-full flex flex-col md:flex-row overflow-hidden">
       {/* Map fills all available space */}
-      <div className="flex-1 min-w-0 relative">
+      <div className={cn("min-w-0 relative", isMobile ? "h-[50vh]" : "flex-1")}>
         <FleetMap
           vehicles={fallbackVehicles}
           selectedVehicle={selectedVehicle}
@@ -83,32 +85,38 @@ const Index = () => {
       </div>
 
       {/* Right sidebar with edge toggle */}
-      <div className="relative flex-shrink-0">
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 -left-5 z-30",
-            "w-5 h-14 flex items-center justify-center",
-            "bg-card border border-border border-r-0 rounded-l-md",
-            "hover:bg-accent transition-colors cursor-pointer",
-            "shadow-md"
-          )}
-          aria-label={sidebarOpen ? 'Collapse Fleet Overview' : 'Expand Fleet Overview'}
-        >
-          {sidebarOpen ? (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
+      <div className="relative flex-shrink-0 md:h-full">
+        {!isMobile && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 -left-5 z-30",
+              "w-5 h-14 flex items-center justify-center",
+              "bg-card border border-border border-r-0 rounded-l-md",
+              "hover:bg-accent transition-colors cursor-pointer",
+              "shadow-md"
+            )}
+            aria-label={sidebarOpen ? 'Collapse Fleet Overview' : 'Expand Fleet Overview'}
+          >
+            {sidebarOpen ? (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        )}
 
         <div
           className={cn(
-            "h-full transition-[width] duration-300 ease-in-out overflow-hidden border-l border-border",
-            sidebarOpen ? "w-80" : "w-0 border-l-0"
+            "transition-[width,height] duration-300 ease-in-out overflow-hidden border-border",
+            isMobile
+              ? "w-full h-[50vh] border-t"
+              : sidebarOpen
+                ? "w-80 h-full border-l"
+                : "w-0 h-full border-l-0"
           )}
         >
-          <div className="w-80 h-full">
+          <div className={cn("h-full", isMobile ? "w-full" : "w-80")}>
             <VehicleList
               vehicles={fallbackVehicles}
               selectedVehicle={selectedVehicle}

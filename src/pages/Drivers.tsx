@@ -224,16 +224,16 @@ export default function Drivers() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold">Driver Management</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold">Driver Management</h2>
           <p className="text-muted-foreground">Drivers and vehicles from your Traccar server</p>
         </div>
         
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
           <Select value={currentView} onValueChange={setCurrentView}>
-            <SelectTrigger className="w-[200px] bg-background">
+            <SelectTrigger className="w-full sm:w-[200px] bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
@@ -269,7 +269,7 @@ export default function Drivers() {
             }}
           >
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Driver
               </Button>

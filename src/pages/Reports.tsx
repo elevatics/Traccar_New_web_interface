@@ -230,19 +230,19 @@ export default function Reports() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle>Total Distance</CardTitle>
+                <CardTitle className="text-base font-medium">Total Distance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{fleetSummary.totalDistance.toLocaleString()} km</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">{fleetSummary.totalDistance.toLocaleString()} km</div>
                 <p className="text-sm text-muted-foreground">Live total from connected trackers</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Active Vehicles</CardTitle>
+                <CardTitle className="text-base font-medium">Active Vehicles</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">
+                <div className="text-2xl font-semibold leading-none tracking-tight">
                   {fleetSummary.active}/{fleetSummary.total}
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -252,10 +252,10 @@ export default function Reports() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Average Speed</CardTitle>
+                <CardTitle className="text-base font-medium">Average Speed</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{fleetSummary.avgSpeed} km/h</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">{fleetSummary.avgSpeed} km/h</div>
                 <p className="text-sm text-muted-foreground">Based on current telemetry</p>
               </CardContent>
             </Card>
@@ -319,37 +319,37 @@ export default function Reports() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader>
-                <CardTitle>Total Revenue</CardTitle>
+                <CardTitle className="text-base font-medium">Total Revenue</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">${Math.round(performanceSummary.estimatedRevenue).toLocaleString()}</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">${Math.round(performanceSummary.estimatedRevenue).toLocaleString()}</div>
                 <p className="text-sm text-muted-foreground">Distance-based live projection</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Total Expenses</CardTitle>
+                <CardTitle className="text-base font-medium">Total Expenses</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">${Math.round(performanceSummary.estimatedExpenses).toLocaleString()}</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">${Math.round(performanceSummary.estimatedExpenses).toLocaleString()}</div>
                 <p className="text-sm text-muted-foreground">Current operating projection</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Net Profit</CardTitle>
+                <CardTitle className="text-base font-medium">Net Profit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">${Math.round(performanceSummary.netProfit).toLocaleString()}</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">${Math.round(performanceSummary.netProfit).toLocaleString()}</div>
                 <p className="text-sm text-muted-foreground">Revenue minus projected expenses</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Profit Margin</CardTitle>
+                <CardTitle className="text-base font-medium">Profit Margin</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{performanceSummary.profitMargin.toFixed(1)}%</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">{performanceSummary.profitMargin.toFixed(1)}%</div>
                 <p className="text-sm text-muted-foreground">Computed from live KPIs</p>
               </CardContent>
             </Card>
@@ -360,19 +360,19 @@ export default function Reports() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle>Total Fuel Cost</CardTitle>
+                <CardTitle className="text-base font-medium">Total Fuel Cost</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">${Math.round(performanceSummary.totalFuelConsumption * 200).toLocaleString()}</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">${Math.round(performanceSummary.totalFuelConsumption * 200).toLocaleString()}</div>
                 <p className="text-sm text-muted-foreground">Derived from current fuel telemetry</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Average Consumption</CardTitle>
+                <CardTitle className="text-base font-medium">Average Consumption</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">
+                <div className="text-2xl font-semibold leading-none tracking-tight">
                   {Math.round(performanceSummary.avgFuelConsumption)}{" "}
                   L/100km
                 </div>
@@ -381,10 +381,10 @@ export default function Reports() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Fuel Savings</CardTitle>
+                <CardTitle className="text-base font-medium">Fuel Savings</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{performanceSummary.incidentCount}</div>
+                <div className="text-2xl font-semibold leading-none tracking-tight">{performanceSummary.incidentCount}</div>
                 <p className="text-sm text-muted-foreground">Tracked incidents in current event window</p>
               </CardContent>
             </Card>
@@ -482,11 +482,11 @@ export default function Reports() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold">Reports</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold">Reports</h2>
           <p className="text-muted-foreground">Analytics and business intelligence</p>
         </div>
         <div className="flex gap-2">
@@ -525,7 +525,7 @@ export default function Reports() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Button
               variant="outline"
-              className="h-auto py-4 flex-col gap-2"
+              className="h-auto py-3 sm:py-4 flex-col gap-2"
               onClick={() => handleQuickAction("view")}
             >
               <Eye className="h-5 w-5" />
@@ -533,7 +533,7 @@ export default function Reports() {
             </Button>
             <Button
               variant="outline"
-              className="h-auto py-4 flex-col gap-2"
+              className="h-auto py-3 sm:py-4 flex-col gap-2"
               onClick={() => handleQuickAction("create")}
             >
               <Plus className="h-5 w-5" />
@@ -541,7 +541,7 @@ export default function Reports() {
             </Button>
             <Button
               variant="outline"
-              className="h-auto py-4 flex-col gap-2"
+              className="h-auto py-3 sm:py-4 flex-col gap-2"
               onClick={() => handleQuickAction("schedule")}
             >
               <Calendar className="h-5 w-5" />
@@ -549,7 +549,7 @@ export default function Reports() {
             </Button>
             <Button
               variant="outline"
-              className="h-auto py-4 flex-col gap-2"
+              className="h-auto py-3 sm:py-4 flex-col gap-2"
               onClick={() => handleQuickAction("export")}
             >
               <FileDown className="h-5 w-5" />
