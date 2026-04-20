@@ -33,28 +33,35 @@ interface VehicleDetailCardProps {
 const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange, onOpenAIChat }: VehicleDetailCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
+    const cardRect = cardRef.current?.getBoundingClientRect();
+    if (!cardRect) return;
     setIsDragging(true);
-    setDragStart({
-      x: e.clientX - (position?.x || 0),
-      y: e.clientY - (position?.y || 0),
+    setDragOffset({
+      x: e.clientX - cardRect.left,
+      y: e.clientY - cardRect.top,
     });
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || !onPositionChange) return;
-      
-      const newX = e.clientX - dragStart.x;
-      const newY = e.clientY - dragStart.y;
-      
-      const maxX = window.innerWidth - (cardRef.current?.offsetWidth || 0);
-      const maxY = window.innerHeight - (cardRef.current?.offsetHeight || 0);
-      
+      const cardEl = cardRef.current;
+      if (!cardEl) return;
+      const mapRootEl = cardEl.closest('.fleet-map-root') as HTMLElement | null;
+      if (!mapRootEl) return;
+
+      const parentRect = mapRootEl.getBoundingClientRect();
+      const newX = e.clientX - parentRect.left - dragOffset.x;
+      const newY = e.clientY - parentRect.top - dragOffset.y;
+
+      const maxX = parentRect.width - cardEl.offsetWidth;
+      const maxY = parentRect.height - cardEl.offsetHeight;
+
       onPositionChange({
         x: Math.max(0, Math.min(newX, maxX)),
         y: Math.max(0, Math.min(newY, maxY)),
@@ -74,7 +81,7 @@ const VehicleDetailCard = ({ vehicle, onClose, position, onPositionChange, onOpe
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, onPositionChange]);
+  }, [isDragging, dragOffset, onPositionChange]);
 
   const getDirectionArrow = (course: number) => {
     const directions = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];

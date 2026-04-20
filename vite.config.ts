@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Work around broken dequal package entry resolution in this environment.
+      dequal: path.resolve(__dirname, "./node_modules/dequal/dist/index.js"),
     },
   },
 }));

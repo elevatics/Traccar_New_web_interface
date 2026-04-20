@@ -9,8 +9,8 @@ import {
   DollarSign,
   Settings,
   User,
-  LogOut } from
-"lucide-react";
+  LogOut,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -24,22 +24,22 @@ import {
   SidebarHeader,
   SidebarFooter,
   SidebarSeparator,
-  useSidebar } from
-"@/components/ui/sidebar";
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { useUserRole, rolePermissions } from "@/contexts/UserRoleContext";
 import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
 
 const menuItems = [
-{ title: "Dashboard", url: "/", icon: LayoutDashboard },
-{ title: "Fleet", url: "/fleet", icon: Map },
-{ title: "Trips", url: "/trips", icon: RouteIcon },
-{ title: "Drivers", url: "/drivers", icon: Users },
-{ title: "Vehicles", url: "/vehicles", icon: Car },
-{ title: "Maintenance", url: "/maintenance", icon: Wrench },
-{ title: "Reports", url: "/reports", icon: FileText },
-// { title: "Finance", url: "/finance", icon: DollarSign },
-{ title: "Settings", url: "/settings", icon: Settings }];
-
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Fleet", url: "/fleet", icon: Map },
+  { title: "Trips", url: "/trips", icon: RouteIcon },
+  { title: "Drivers", url: "/drivers", icon: Users },
+  { title: "Vehicles", url: "/vehicles", icon: Car },
+  // { title: "Maintenance", url: "/maintenance", icon: Wrench },
+  { title: "Reports", url: "/reports", icon: FileText },
+  // { title: "Finance", url: "/finance", icon: DollarSign },
+  { title: "Settings", url: "/settings", icon: Settings },
+];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -48,7 +48,9 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
 
   const allowedPaths = rolePermissions[role];
-  const filteredMenuItems = menuItems.filter((item) => allowedPaths.includes(item.url));
+  const filteredMenuItems = menuItems.filter((item) =>
+    allowedPaths.includes(item.url),
+  );
 
   return (
     <Sidebar collapsible="icon">
@@ -57,13 +59,14 @@ export function AppSidebar() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Map className="h-5 w-5" />
           </div>
-          {!collapsed &&
-          <div className="flex flex-col">
-              <span className="text-sm font-semibold">Turet Telematics
-
-            </span>
-              <span className="text-xs text-muted-foreground">GPS Tracking</span>
-            </div>}
+          {!collapsed && (
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold">Turet Telematics</span>
+              <span className="text-xs text-muted-foreground">
+                GPS Tracking
+              </span>
+            </div>
+          )}
         </div>
       </SidebarHeader>
 
@@ -72,21 +75,24 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredMenuItems.map((item) => <SidebarMenuItem key={item.title}>
+              {filteredMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink
                       to={item.url}
                       end
                       className={({ isActive }) =>
-                      isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""
-                      }>
-
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : ""
+                      }
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -116,6 +122,6 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-    </Sidebar>);
-
+    </Sidebar>
+  );
 }

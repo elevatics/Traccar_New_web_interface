@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +28,13 @@ type StreamEvent =
 interface VehicleAIChatProps {
   vehicle: Vehicle;
   onClose: () => void;
+  onDragStart?: (event: ReactMouseEvent) => void;
+  useExternalLayout?: boolean;
 }
 
 const CHAT_URL = 'https://api1001.elevatics.online/v3/chat';
 
-const VehicleAIChat = ({ vehicle, onClose }: VehicleAIChatProps) => {
+const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = false }: VehicleAIChatProps) => {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: `Hi! I'm your AI Fleet Companion for **${vehicle.name}** (${vehicle.plateNumber}). Ask me anything about this vehicle — status, fuel, maintenance, driving patterns, or recommendations!` }
   ]);
@@ -192,12 +194,20 @@ const VehicleAIChat = ({ vehicle, onClose }: VehicleAIChatProps) => {
     <Card
       className={cn(
         'flex flex-col shadow-2xl border-2 border-primary/20 overflow-hidden',
-        isExpanded
+        useExternalLayout
+          ? 'w-full h-full'
+          : isExpanded
           ? 'fixed inset-3 sm:inset-6 z-50 w-auto h-auto'
           : 'w-[420px] max-w-[95vw] h-[520px] sm:h-[560px]'
       )}
     >
-      <CardHeader className="pb-2 flex-shrink-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-t-lg">
+      <CardHeader
+        className={cn(
+          'pb-2 flex-shrink-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-t-lg',
+          onDragStart && 'cursor-grab active:cursor-grabbing select-none'
+        )}
+        onMouseDown={onDragStart}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
@@ -209,15 +219,17 @@ const VehicleAIChat = ({ vehicle, onClose }: VehicleAIChatProps) => {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setIsExpanded(prev => !prev)}
-              aria-label={isExpanded ? 'Collapse chat window' : 'Expand chat window'}
-            >
-              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
+            {!useExternalLayout && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setIsExpanded(prev => !prev)}
+                aria-label={isExpanded ? 'Collapse chat window' : 'Expand chat window'}
+              >
+                {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7" aria-label="Close chat">
               <X className="h-4 w-4" />
             </Button>

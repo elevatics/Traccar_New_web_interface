@@ -135,9 +135,13 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   const markers = useRef<Record<string, MarkerEntry>>({});
   const hasAutoCentered = useRef(false);
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
-  const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
+  const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiChatVehicle, setAiChatVehicle] = useState<Vehicle | null>(null);
+  const [aiChatPosition, setAiChatPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isAiChatDragging, setIsAiChatDragging] = useState(false);
+  const [aiChatDragOffset, setAiChatDragOffset] = useState({ x: 0, y: 0 });
+  const aiChatWrapperRef = useRef<HTMLDivElement>(null);
   const { fleetData } = useFleetData();
   const vehiclesById = useMemo(
     () =>
@@ -147,9 +151,60 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   
   useEffect(() => {
     if (selectedVehicle) {
-      setCardPosition({ x: 0, y: 0 });
+      setCardPosition(null);
     }
   }, [selectedVehicle]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isAiChatDragging) return;
+      const wrapper = aiChatWrapperRef.current;
+      const mapRoot = wrapper?.closest('.fleet-map-root') as HTMLElement | null;
+      if (!wrapper || !mapRoot) return;
+
+      const rootRect = mapRoot.getBoundingClientRect();
+      const nextX = e.clientX - rootRect.left - aiChatDragOffset.x;
+      const nextY = e.clientY - rootRect.top - aiChatDragOffset.y;
+      const maxX = rootRect.width - wrapper.offsetWidth;
+      const maxY = rootRect.height - wrapper.offsetHeight;
+
+      setAiChatPosition({
+        x: Math.max(0, Math.min(nextX, maxX)),
+        y: Math.max(0, Math.min(nextY, maxY)),
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsAiChatDragging(false);
+    };
+
+    if (isAiChatDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [aiChatDragOffset, isAiChatDragging]);
+
+  const handleAiChatDragStart = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, textarea, a, [role="tab"], [role="tablist"]')) {
+      return;
+    }
+    const wrapper = aiChatWrapperRef.current;
+    const mapRoot = wrapper?.closest('.fleet-map-root') as HTMLElement | null;
+    if (!wrapper || !mapRoot) return;
+    const rect = wrapper.getBoundingClientRect();
+    const rootRect = mapRoot.getBoundingClientRect();
+    setAiChatPosition((prev) => prev ?? { x: rect.left - rootRect.left, y: rect.top - rootRect.top });
+    setAiChatDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setIsAiChatDragging(true);
+  };
 
   useEffect(() => {
     if (!mapContainer.current || !apiToken) return;
@@ -423,7 +478,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   }, [mapStyle]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full fleet-map-root">
       <div ref={mapContainer} className="absolute inset-0" />
 
       <div className="absolute top-4 left-4 flex gap-2 z-10">
@@ -460,10 +515,10 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         <div 
           className="absolute z-10 w-96 max-w-[90vw]"
           style={{
-            left: cardPosition.x === 0 ? '50%' : `${cardPosition.x}px`,
-            bottom: cardPosition.y === 0 ? '2rem' : 'auto',
-            top: cardPosition.y !== 0 ? `${cardPosition.y}px` : 'auto',
-            transform: cardPosition.x === 0 ? 'translateX(-50%)' : 'none',
+            left: cardPosition ? `${cardPosition.x}px` : '50%',
+            top: cardPosition ? `${cardPosition.y}px` : 'auto',
+            bottom: cardPosition ? 'auto' : '2rem',
+            transform: cardPosition ? 'none' : 'translateX(-50%)',
           }}
         >
           <VehicleDetailCard 
@@ -481,12 +536,28 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
 
       {/* AI Chat Window */}
       {showAIChat && aiChatVehicle && (
-        <div className="absolute top-4 right-4 z-[70]">
+        <div
+          ref={aiChatWrapperRef}
+          className={cn(
+            'absolute z-[70] overflow-hidden rounded-lg',
+            'min-w-[320px] min-h-[380px] max-w-[95vw] max-h-[90vh] resize'
+          )}
+          style={{
+            width: '420px',
+            height: '560px',
+            left: aiChatPosition ? `${aiChatPosition.x}px` : 'auto',
+            top: aiChatPosition ? `${aiChatPosition.y}px` : '1rem',
+            right: aiChatPosition ? 'auto' : '1rem',
+          }}
+        >
           <VehicleAIChat 
             vehicle={aiChatVehicle} 
+            onDragStart={handleAiChatDragStart}
+            useExternalLayout
             onClose={() => {
               setShowAIChat(false);
               setAiChatVehicle(null);
+              setAiChatPosition(null);
             }} 
           />
         </div>
