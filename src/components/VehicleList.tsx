@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { Vehicle, VehicleStatus } from '@/types/vehicle';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import StatusBadge from './StatusBadge';
 import { cn } from '@/lib/utils';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import AddVehicleDialog from './AddVehicleDialog';
 import useFleetData from '@/hooks/useFleetData';
 import { formatDistanceToNow } from 'date-fns';
+import { deleteDevice } from '@/services/deviceService';
+import { toast } from 'sonner';
 
 type FleetListItem = {
   id: string | number;
@@ -75,7 +77,7 @@ const getUpdatedText = (vehicle: FleetListItem) => {
 interface VehicleListProps {
   vehicles: Vehicle[];
   selectedVehicle: Vehicle | null;
-  onSelectVehicle: (vehicle: Vehicle) => void;
+  onSelectVehicle: (vehicle: Vehicle | null) => void;
   filterStatus: VehicleStatus | 'all';
   onFilterChange: (status: VehicleStatus | 'all') => void;
 }
@@ -88,7 +90,36 @@ const VehicleList = ({
   onFilterChange,
 }: VehicleListProps) => {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { fleetData, loading, error, refresh } = useFleetData();
+
+  const handleDeleteDevice = async (e: MouseEvent, fleetVehicle: FleetListItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const deviceId = Number(fleetVehicle.deviceId ?? fleetVehicle.id);
+    const label = fleetVehicle.name || `Device ${deviceId}`;
+    if (!window.confirm(`Delete vehicle "${label}" from Traccar? This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(String(fleetVehicle.id));
+    try {
+      await deleteDevice(deviceId);
+      toast.success("Vehicle removed from Traccar");
+      if (String(selectedVehicle?.id) === String(fleetVehicle.id)) {
+        onSelectVehicle(null);
+      }
+      await refresh();
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string }; status?: number } }).response?.data
+              ?.message
+          : null;
+      toast.error(message || (err instanceof Error ? err.message : "Could not delete vehicle"));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fleetVehicles = useMemo(
     () =>
@@ -274,13 +305,27 @@ const VehicleList = ({
                       Updated: <span className="text-card-foreground font-medium">{getUpdatedText(vehicle)}</span>
                     </p>
                   </div>
-                  <Button 
-                    size="sm" 
-                    className="w-full mt-2"
-                    variant={String(selectedVehicle?.id) === String(vehicle.id) ? "default" : "outline"}
-                  >
-                    View on Map
-                  </Button>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      variant={String(selectedVehicle?.id) === String(vehicle.id) ? "default" : "outline"}
+                      type="button"
+                    >
+                      View on Map
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 text-destructive hover:text-destructive"
+                      type="button"
+                      disabled={deletingId === String(vehicle.id)}
+                      title="Delete from Traccar"
+                      onClick={(e) => void handleDeleteDevice(e, vehicle)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CollapsibleContent>
             </Card>

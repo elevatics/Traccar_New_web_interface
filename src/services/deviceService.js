@@ -1,4 +1,10 @@
-import { traccarGet, traccarGetCollection, traccarPost, traccarPut } from "../api/traccarRequest";
+import {
+  traccarDelete,
+  traccarGet,
+  traccarGetCollection,
+  traccarPost,
+  traccarPut,
+} from "../api/traccarRequest";
 
 const normalizeDevice = (device) => ({
   id: device?.id ?? null,
@@ -45,4 +51,13 @@ export const createDevice = async (device) => {
   }
 
   return traccarPost("/devices", payload);
+};
+
+/** Remove device from Traccar (DELETE /api/devices/{id}). Requires server permissions. */
+export const deleteDevice = async (deviceId) => {
+  const id = Number(deviceId);
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error("Invalid device id");
+  }
+  await traccarDelete(`/devices/${id}`);
 };

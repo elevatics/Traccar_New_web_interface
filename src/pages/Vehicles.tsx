@@ -35,13 +35,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   Calendar,
-  User
+  User,
+  Trash2,
 } from 'lucide-react';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import AddVehicleDialog from '@/components/AddVehicleDialog';
 import useFleetData from '@/hooks/useFleetData';
+import { deleteDevice } from '@/services/deviceService';
 
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
@@ -55,6 +57,7 @@ export default function Vehicles() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
+  const [deleteSubmittingId, setDeleteSubmittingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const vehiclesData = useMemo<Vehicle[]>(
@@ -157,6 +160,42 @@ export default function Vehicles() {
       title: "Tracking Vehicle",
       description: `Now tracking ${vehicle.name} in real-time`,
     });
+  };
+
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    if (!window.confirm(`Delete "${vehicle.name}" from Traccar? This cannot be undone.`)) {
+      return;
+    }
+    const deviceId = vehicle.deviceId || Number(vehicle.id);
+    setDeleteSubmittingId(vehicle.id);
+    try {
+      await deleteDevice(deviceId);
+      toast({ title: "Vehicle deleted", description: `${vehicle.name} was removed from Traccar.` });
+      if (selectedVehicle?.id === vehicle.id) {
+        setSelectedVehicle(null);
+        setDetailsDialogOpen(false);
+        setHealthDialogOpen(false);
+        setMaintenanceDialogOpen(false);
+      }
+      await refresh();
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === "object" && "response" in error
+          ? String(
+              (error as { response?: { data?: { message?: string } } }).response?.data?.message ||
+                "Delete failed"
+            )
+          : error instanceof Error
+            ? error.message
+            : "Delete failed";
+      toast({
+        title: "Could not delete vehicle",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteSubmittingId(null);
+    }
   };
 
   const getHealthStatus = (fuelLevel: number) => {
@@ -271,6 +310,16 @@ export default function Vehicles() {
                   >
                     <MapPin className="h-3 w-3 mr-1" />
                     Track
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    disabled={deleteSubmittingId === vehicle.id}
+                    onClick={() => void handleDeleteVehicle(vehicle)}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    {deleteSubmittingId === vehicle.id ? "…" : "Delete"}
                   </Button>
                 </div>
               </div>
