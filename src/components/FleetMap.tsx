@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
-import { Map as MapIcon, Satellite, Navigation, Layers } from 'lucide-react';
+import { Map as MapIcon, Satellite, Navigation, Layers, Locate } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
@@ -214,9 +214,10 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-73.9776, 40.7580],
-      zoom: 12,
-      pitch: 45,
+      // Start zoomed out — fitBounds will center on actual device locations once data loads
+      center: [0, 20],
+      zoom: 2,
+      pitch: 0,
     });
 
     map.current.addControl(
@@ -405,14 +406,10 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     });
   }, [selectedVehicle]);
 
-  useEffect(() => {
-    if (!map.current || hasAutoCentered.current || selectedVehicle) return;
-
-    const validFleetCoords = (fleetData as FleetPoint[])
-      .map((item) => ({
-        lat: Number(item.lat),
-        lng: Number(item.lng),
-      }))
+  // Utility: compute valid device coordinates from fleet data
+  const getValidCoords = () =>
+    (fleetData as FleetPoint[])
+      .map(item => ({ lat: Number(item.lat), lng: Number(item.lng) }))
       .filter(
         ({ lat, lng }) =>
           Number.isFinite(lat) &&
@@ -422,17 +419,41 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           !(lat === 0 && lng === 0)
       );
 
-    if (validFleetCoords.length === 0) return;
+  // Fit map to all device locations
+  const fitToDevices = (duration = 1200) => {
+    if (!map.current) return;
+    const coords = getValidCoords();
+    if (coords.length === 0) return;
 
     const bounds = new mapboxgl.LngLatBounds();
-    validFleetCoords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
+    coords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
 
     map.current.fitBounds(bounds, {
-      padding: 80,
+      padding: { top: 80, bottom: 80, left: 80, right: 80 },
       maxZoom: 14,
-      duration: 1200,
+      duration,
     });
-    hasAutoCentered.current = true;
+  };
+
+  // Auto-center once when device data first becomes available.
+  // Wait for the map style to be fully loaded before calling fitBounds,
+  // otherwise the call is silently ignored and hasAutoCentered is set too early.
+  useEffect(() => {
+    if (!map.current || hasAutoCentered.current || selectedVehicle) return;
+    if (getValidCoords().length === 0) return;
+
+    const doFit = () => {
+      fitToDevices(1200);
+      hasAutoCentered.current = true;
+    };
+
+    if (map.current.isStyleLoaded()) {
+      doFit();
+    } else {
+      // Style not ready yet — queue the fit for when it is
+      map.current.once('load', doFit);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fleetData, selectedVehicle]);
 
   useEffect(() => {
@@ -508,6 +529,20 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         >
           <Layers className="h-4 w-4 mr-2" />
           Traffic
+        </Button>
+        {/* Re-center button — always fits back to all device locations */}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            hasAutoCentered.current = false;
+            fitToDevices(800);
+          }}
+          className="shadow-lg"
+          title="Fit map to all device locations"
+        >
+          <Locate className="h-4 w-4 mr-2" />
+          Re-center
         </Button>
       </div>
 

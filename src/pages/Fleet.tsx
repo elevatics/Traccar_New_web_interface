@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   Map, 
   Car, 
@@ -11,7 +12,12 @@ import {
   MessageSquare, 
   Navigation,
   Eye,
-  MonitorPlay
+  MonitorPlay,
+  Wifi,
+  WifiOff,
+  Zap,
+  Gauge,
+  CheckCircle,
 } from 'lucide-react';
 import FleetMap from '@/components/FleetMap';
 import Vehicle360View from '@/components/Vehicle360View';
@@ -183,7 +189,7 @@ export default function Fleet() {
                     </div>
 
                     {/* Map + 360 View Layout */}
-                    <div className={liveView ? "grid grid-cols-1 xl:grid-cols-3 gap-4 h-auto xl:h-[600px]" : "h-[55vh] min-h-[360px] sm:h-[600px]"}>
+                    <div className={liveView ? "grid grid-cols-1 xl:grid-cols-3 gap-4 h-auto xl:h-[520px]" : "h-[50vh] min-h-[320px] sm:h-[520px]"}>
                       {liveView ? (
                         <>
                           {/* Map takes 2/3 */}
@@ -276,42 +282,80 @@ export default function Fleet() {
 
           <TabsContent value="alerts" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Latest Alerts</CardTitle>
-                <CardDescription>Most recent events from Traccar</CardDescription>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle>Live Alerts</CardTitle>
+                    <CardDescription>Most recent events from Traccar (auto-refreshes every 5s)</CardDescription>
+                  </div>
+                  {latestAlerts.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {latestAlerts.length} events
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {alertsLoading && <p className="text-sm text-muted-foreground">Loading latest alerts...</p>}
                   {!alertsLoading && alertsError && (
                     <p className="text-sm text-destructive">{alertsError}</p>
                   )}
                   {!alertsLoading && !alertsError && latestAlerts.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No recent alerts available.</p>
+                    <div className="flex flex-col items-center py-8 text-muted-foreground">
+                      <CheckCircle className="h-8 w-8 mb-2 opacity-40" />
+                      <p className="text-sm">No recent alerts available.</p>
+                    </div>
                   )}
                   {!alertsLoading &&
                     !alertsError &&
-                    latestAlerts.map((alert, index) => (
-                      <div
-                        key={`${alert.deviceId}-${alert.eventTime}-${index}`}
-                        className="p-4 border-l-4 border-orange-500 bg-orange-50 dark:bg-orange-950/20 rounded"
-                      >
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
-                          <div>
-                            <h4 className="font-semibold text-orange-700 dark:text-orange-300 capitalize">
-                              {alert.type}
-                            </h4>
-                            <p className="text-sm text-orange-600 dark:text-orange-200">
-                              Device ID: {alert.deviceId ?? 'Unknown'}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {alert.eventTime ? new Date(alert.eventTime).toLocaleString() : 'Time unavailable'}
-                            </p>
+                    latestAlerts.map((alert, index) => {
+                      const isHighSeverity = ['deviceOverspeed', 'alarm'].includes(alert.type);
+                      const isMediumSeverity = ['deviceOffline', 'geofenceEnter', 'geofenceExit'].includes(alert.type);
+                      const borderColor = isHighSeverity
+                        ? 'border-red-500'
+                        : isMediumSeverity
+                        ? 'border-yellow-500'
+                        : 'border-blue-400';
+                      const bgColor = isHighSeverity
+                        ? 'bg-red-50 dark:bg-red-950/20'
+                        : isMediumSeverity
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20'
+                        : 'bg-blue-50/50 dark:bg-blue-950/10';
+                      const icon =
+                        alert.type === 'deviceOnline' ? <Wifi className="h-4 w-4 text-green-500" /> :
+                        alert.type === 'deviceOffline' ? <WifiOff className="h-4 w-4 text-red-500" /> :
+                        alert.type === 'deviceOverspeed' ? <Gauge className="h-4 w-4 text-red-600" /> :
+                        ['ignitionOn', 'ignitionOff'].includes(alert.type) ? <Zap className="h-4 w-4 text-yellow-500" /> :
+                        ['geofenceEnter', 'geofenceExit'].includes(alert.type) ? <MapPin className="h-4 w-4 text-blue-500" /> :
+                        <AlertTriangle className="h-4 w-4 text-orange-500" />;
+                      return (
+                        <div
+                          key={`${alert.deviceId}-${alert.eventTime}-${index}`}
+                          className={`p-3 border-l-4 ${borderColor} ${bgColor} rounded-r-md`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex-shrink-0">{icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="font-semibold text-sm capitalize">
+                                  {alert.type.replace(/([A-Z])/g, ' $1').trim()}
+                                </h4>
+                                {isHighSeverity && (
+                                  <Badge variant="destructive" className="text-[10px] h-4 px-1">Critical</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Device ID: {alert.deviceId ?? 'Unknown'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {alert.eventTime ? new Date(alert.eventTime).toLocaleString() : 'Time unavailable'}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>
@@ -331,46 +375,72 @@ export default function Fleet() {
 
           <TabsContent value="notifications" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Alert History & Rules</CardTitle>
-                <CardDescription>Configure and view live notification history</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Button variant="outline">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle>Notification History</CardTitle>
+                    <CardDescription>Full event log from Traccar (last 24 hours)</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm">
                     <Bell className="h-4 w-4 mr-2" />
                     Configure Alert Rules
                   </Button>
-                  <div className="space-y-2">
-                    {alertsLoading && (
-                      <p className="text-sm text-muted-foreground">Loading notification history...</p>
-                    )}
-                    {!alertsLoading && alertsError && (
-                      <p className="text-sm text-destructive">{alertsError}</p>
-                    )}
-                    {!alertsLoading && !alertsError && latestAlerts.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No notifications available.</p>
-                    )}
-                    {!alertsLoading &&
-                      !alertsError &&
-                      latestAlerts.map((alert, index) => (
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5">
+                  {alertsLoading && (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Loading notification history...</p>
+                  )}
+                  {!alertsLoading && alertsError && (
+                    <p className="text-sm text-destructive py-4 text-center">{alertsError}</p>
+                  )}
+                  {!alertsLoading && !alertsError && latestAlerts.length === 0 && (
+                    <div className="flex flex-col items-center py-8 text-muted-foreground">
+                      <Bell className="h-8 w-8 mb-2 opacity-40" />
+                      <p className="text-sm">No notifications available.</p>
+                    </div>
+                  )}
+                  {!alertsLoading &&
+                    !alertsError &&
+                    latestAlerts.map((alert, index) => {
+                      const isHighSeverity = ['deviceOverspeed', 'alarm'].includes(alert.type);
+                      const isMediumSeverity = ['deviceOffline', 'geofenceEnter', 'geofenceExit'].includes(alert.type);
+                      return (
                         <div
                           key={`notification-${alert.deviceId}-${alert.eventTime}-${index}`}
-                          className="p-3 border rounded-lg text-sm"
+                          className="flex items-center gap-3 p-3 border rounded-lg text-sm hover:bg-muted/40 transition-colors"
                         >
-                          <div className="flex justify-between gap-4">
-                            <span className="font-medium capitalize">
-                              {alert.type} - Device {alert.deviceId ?? "Unknown"}
-                            </span>
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {alert.eventTime
-                                ? new Date(alert.eventTime).toLocaleString()
-                                : "Time unavailable"}
-                            </span>
+                          <div className="flex-shrink-0">
+                            {alert.type === 'deviceOnline' ? <Wifi className="h-4 w-4 text-green-500" /> :
+                             alert.type === 'deviceOffline' ? <WifiOff className="h-4 w-4 text-red-500" /> :
+                             alert.type === 'deviceOverspeed' ? <Gauge className="h-4 w-4 text-red-600" /> :
+                             ['ignitionOn', 'ignitionOff'].includes(alert.type) ? <Zap className="h-4 w-4 text-yellow-500" /> :
+                             ['geofenceEnter', 'geofenceExit'].includes(alert.type) ? <MapPin className="h-4 w-4 text-blue-500" /> :
+                             <Bell className="h-4 w-4 text-muted-foreground" />}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium capitalize">
+                                {alert.type.replace(/([A-Z])/g, ' $1').trim()}
+                              </span>
+                              {isHighSeverity && (
+                                <Badge variant="destructive" className="text-[10px] h-4 px-1">Critical</Badge>
+                              )}
+                              {isMediumSeverity && (
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">Warning</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Device {alert.deviceId ?? 'Unknown'}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                            {alert.eventTime
+                              ? new Date(alert.eventTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : 'Unknown time'}
+                          </span>
                         </div>
-                      ))}
-                  </div>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>

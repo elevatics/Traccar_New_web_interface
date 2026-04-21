@@ -1,9 +1,21 @@
 import { useState, useRef, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Send, Bot, User, Loader2, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  X,
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  ChevronDown,
+  ExternalLink,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReactMarkdown from 'react-markdown';
@@ -34,20 +46,279 @@ interface VehicleAIChatProps {
 
 const CHAT_URL = 'https://api1001.elevatics.online/v3/chat';
 
+const isMapHtml = (html: string) =>
+  /leaflet|mapbox|L\.map|google\.maps|openstreetmap|ol\.Map|maplibre/i.test(html);
+
+// Inner chat UI — rendered both in normal and portal-fullscreen mode
+function ChatUI({
+  vehicle,
+  messages,
+  input,
+  isLoading,
+  toolProgress,
+  isExpanded,
+  showScrollButton,
+  quickQuestions,
+  messagesEndRef,
+  scrollAreaRef,
+  inputRef,
+  onScroll,
+  onSend,
+  onInputChange,
+  onExpand,
+  onClose,
+  onDragStart,
+  useExternalLayout,
+}: {
+  vehicle: Vehicle;
+  messages: Message[];
+  input: string;
+  isLoading: boolean;
+  toolProgress: string[];
+  isExpanded: boolean;
+  showScrollButton: boolean;
+  quickQuestions: string[];
+  messagesEndRef: React.RefObject<HTMLDivElement>;
+  scrollAreaRef: React.RefObject<HTMLDivElement>;
+  inputRef: React.RefObject<HTMLInputElement>;
+  onScroll: () => void;
+  onSend: () => void;
+  onInputChange: (v: string) => void;
+  onExpand: () => void;
+  onClose: () => void;
+  onDragStart?: (e: ReactMouseEvent) => void;
+  useExternalLayout: boolean;
+}) {
+  return (
+    <Card className="flex flex-col w-full h-full shadow-2xl border border-primary/20 overflow-hidden bg-background rounded-xl">
+      {/* Header */}
+      <CardHeader
+        className={cn(
+          'pb-0 pt-3 px-4 flex-shrink-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border',
+          onDragStart && !isExpanded && 'cursor-grab active:cursor-grabbing select-none'
+        )}
+        onMouseDown={!isExpanded ? onDragStart : undefined}
+      >
+        <div className="flex items-center justify-between pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center shadow-sm flex-shrink-0">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold leading-none">AI Fleet Companion</p>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
+                {vehicle.name}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {/* Expand/collapse — always visible */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={onExpand}
+              aria-label={isExpanded ? 'Exit full screen' : 'Expand to full screen'}
+              title={isExpanded ? 'Exit full screen' : 'Expand to full screen'}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={onClose}
+              aria-label="Close chat"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
+        {/* Messages */}
+        <div
+          ref={scrollAreaRef}
+          onScroll={onScroll}
+          className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0 scroll-smooth"
+        >
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={cn(
+                'flex gap-2.5 items-end',
+                msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+              )}
+            >
+              {/* Avatar */}
+              <div
+                className={cn(
+                  'h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 border',
+                  msg.role === 'user'
+                    ? 'bg-primary border-primary/30'
+                    : 'bg-muted border-border'
+                )}
+              >
+                {msg.role === 'user' ? (
+                  <User className="h-3.5 w-3.5 text-primary-foreground" />
+                ) : (
+                  <Bot className="h-3.5 w-3.5 text-primary" />
+                )}
+              </div>
+
+              {/* Bubble */}
+              <div
+                className={cn(
+                  'rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-br-sm max-w-[80%]'
+                    : 'bg-muted text-foreground rounded-bl-sm border border-border/60 w-full max-w-full'
+                )}
+              >
+                {msg.role === 'assistant' ? (
+                  <div className="space-y-2.5">
+                    {/* Text content — hide placeholder once artifacts exist */}
+                    {(msg.content && msg.content !== '_Working on your request..._') || !msg.artifacts?.length ? (
+                      <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:break-all prose-a:text-primary prose-a:break-all prose-a:no-underline hover:prose-a:underline prose-table:block prose-table:overflow-x-auto prose-headings:text-sm prose-headings:font-semibold">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.content || '_Working on your request…_'}
+                        </ReactMarkdown>
+                      </div>
+                    ) : null}
+                    {msg.artifacts && msg.artifacts.length > 0 && (
+                      <ArtifactTabs artifacts={msg.artifacts} isExpanded={isExpanded} />
+                    )}
+                  </div>
+                ) : (
+                  <span className="whitespace-pre-wrap leading-relaxed">{msg.content}</span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Loader — visible the entire time the API is working */}
+          {isLoading && (
+            <div className="flex gap-2.5 items-end">
+              <div className="h-7 w-7 rounded-full bg-muted border border-border flex items-center justify-center flex-shrink-0">
+                <Bot className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div className="bg-muted border border-border/60 rounded-2xl rounded-bl-sm px-4 py-3 space-y-2">
+                {/* Animated dots */}
+                <div className="flex gap-1.5 items-center">
+                  <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                  <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                  <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                </div>
+                {/* Tool progress chips shown beneath dots */}
+                {toolProgress.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground font-medium">Running analysis…</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {toolProgress.map((tool, idx) => (
+                        <span
+                          key={`${tool}-${idx}`}
+                          className="rounded-full bg-primary/15 text-primary px-2 py-0.5 text-[11px] font-medium flex items-center gap-1"
+                        >
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Scroll-to-bottom button */}
+        {showScrollButton && (
+          <button
+            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            className="absolute bottom-[4.5rem] right-4 z-10 h-8 w-8 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all"
+            aria-label="Scroll to latest message"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Quick questions */}
+        {messages.length <= 1 && (
+          <div className="px-4 pb-2 pt-1 border-t border-border/40">
+            <p className="text-xs text-muted-foreground mb-1.5">Suggested questions:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {quickQuestions.map(q => (
+                <button
+                  key={q}
+                  onClick={() => onInputChange(q)}
+                  className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20 font-medium"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input bar */}
+        <div className="px-4 pb-4 pt-2 border-t border-border bg-background/80 backdrop-blur-sm shrink-0">
+          <form
+            onSubmit={(e) => { e.preventDefault(); onSend(); }}
+            className="flex gap-2 items-center"
+          >
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="Ask about this vehicle…"
+              className="flex-1 h-10 text-sm rounded-xl border-border/70 bg-muted/40 focus-visible:ring-primary/50"
+              disabled={isLoading}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="h-10 w-10 rounded-xl shrink-0"
+              disabled={isLoading || !input.trim()}
+              aria-label="Send message"
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </form>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = false }: VehicleAIChatProps) => {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: `Hi! I'm your AI Fleet Companion for **${vehicle.name}** (${vehicle.plateNumber}). Ask me anything about this vehicle — status, fuel, maintenance, driving patterns, or recommendations!` }
+    {
+      role: 'assistant',
+      content: `Hi! I'm your **AI Fleet Companion** for **${vehicle.name}** (${vehicle.plateNumber}). Ask me anything about this vehicle — status, fuel, maintenance, driving patterns, or recommendations!`,
+    },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toolProgress, setToolProgress] = useState<string[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleScroll = () => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    setShowScrollButton(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -58,15 +329,16 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
     setIsLoading(true);
     setToolProgress([]);
 
-    let assistantSoFar = '';
-    let doneStream = false;
+    // Accumulate the full response locally — nothing is pushed to state until
+    // the stream is completely finished, so the loader stays visible throughout.
+    let fullText = '';
+    const collectedArtifacts: ChatArtifact[] = [];
+    let succeeded = false;
 
     try {
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg.content,
           thread_id: `vehicle-${vehicle.deviceId}`,
@@ -77,23 +349,12 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
 
       if (!resp.ok || !resp.body) {
         const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to get response');
+        throw new Error((errData as any).error || 'Failed to get response');
       }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = '';
-
-      const upsertAssistant = (chunk: string) => {
-        assistantSoFar += chunk;
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant' && prev.length > 1 && last.content !== messages[0]?.content) {
-            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
-          }
-          return [...prev, { role: 'assistant', content: assistantSoFar }];
-        });
-      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -108,77 +369,63 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
           if (line.startsWith(':') || line.trim() === '') continue;
           if (!line.startsWith('data:')) continue;
           const jsonStr = line.slice(5).trim();
-          if (jsonStr === '' || jsonStr === '[DONE]') continue;
+          if (!jsonStr || jsonStr === '[DONE]') continue;
           try {
             const parsed = JSON.parse(jsonStr) as StreamEvent;
 
             if (parsed.type === 'token' && parsed.content) {
-              upsertAssistant(parsed.content);
+              fullText += parsed.content;
               continue;
             }
-
             if (parsed.type === 'tool_start' && parsed.tool) {
-              setToolProgress(prev => [...prev, parsed.tool!]);
+              // Show tool names in the loader indicator while waiting
+              setToolProgress(prev =>
+                prev.includes(parsed.tool!) ? prev : [...prev, parsed.tool!]
+              );
               continue;
             }
-
             if (parsed.type === 'tool_end' && parsed.output) {
-              upsertAssistant(`\n\n${parsed.output}`);
+              fullText += `\n\n${parsed.output}`;
               continue;
             }
-
             if (parsed.type === 'artifact') {
-              const artifacts: ChatArtifact[] = [];
-              if (parsed['text/csv']) artifacts.push({ csv: parsed['text/csv'] });
-              if (parsed['text/html']) artifacts.push({ html: parsed['text/html'] });
-              if (parsed['plotly_fig/json']) artifacts.push({ plotlyJson: parsed['plotly_fig/json'] });
-              if (artifacts.length > 0) {
-                setMessages(prev => {
-                  const next = [...prev];
-                  const last = next[next.length - 1];
-                  if (last?.role === 'assistant') {
-                    last.artifacts = [...(last.artifacts ?? []), ...artifacts];
-                  } else {
-                    next.push({ role: 'assistant', content: '', artifacts });
-                  }
-                  return next;
-                });
-              }
+              if (parsed['text/csv'])        collectedArtifacts.push({ csv: parsed['text/csv'] });
+              if (parsed['text/html'])       collectedArtifacts.push({ html: parsed['text/html'] });
+              if (parsed['plotly_fig/json']) collectedArtifacts.push({ plotlyJson: parsed['plotly_fig/json'] });
               continue;
             }
-
-            if (parsed.type === 'error') {
-              throw new Error(parsed.message || 'Stream error');
-            }
+            if (parsed.type === 'error') throw new Error(parsed.message || 'Stream error');
           } catch {
             textBuffer = line + '\n' + textBuffer;
             break;
           }
         }
       }
-      doneStream = true;
+
+      succeeded = true;
     } catch (e: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${e.message}` }]);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Sorry, I encountered an error: ${e.message}` },
+      ]);
     } finally {
-      const addressRequested = isAddressQuery(userMsg.content);
-      if (doneStream && assistantSoFar && addressRequested && !containsStreetAddress(assistantSoFar) && vehicle.location.address) {
-        const coordsLink = `https://www.google.com/maps?q=${vehicle.location.lat},${vehicle.location.lng}`;
-        setMessages(prev => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.role !== 'assistant') return next;
-          return [
-            ...next.slice(0, -1),
-            {
-              ...last,
-              content: `${last.content}\n\n**Latest known address:** ${vehicle.location.address}\n\n[Open in Google Maps](${coordsLink})`,
-            },
-          ];
-        });
+      if (succeeded) {
+        // Optionally append address context
+        if (fullText && isAddressQuery(userMsg.content) && !containsStreetAddress(fullText) && vehicle.location.address) {
+          const coordsLink = `https://www.google.com/maps?q=${vehicle.location.lat},${vehicle.location.lng}`;
+          fullText += `\n\n**Latest known address:** ${vehicle.location.address}\n\n[Open in Google Maps](${coordsLink})`;
+        }
+
+        const finalMsg: Message = {
+          role: 'assistant',
+          content: fullText || (collectedArtifacts.length > 0 ? '' : 'No response received. Please try again.'),
+          ...(collectedArtifacts.length > 0 ? { artifacts: collectedArtifacts } : {}),
+        };
+
+        // Commit the complete message all at once
+        setMessages(prev => [...prev, finalMsg]);
       }
-      if (!doneStream && !assistantSoFar) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'No response received. Please try again.' }]);
-      }
+
       setToolProgress([]);
       setIsLoading(false);
     }
@@ -188,168 +435,59 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
     'Vehicle health summary',
     'Fuel efficiency analysis',
     'Maintenance recommendations',
+    'Show route history in chart and map',
   ];
 
+  const sharedProps = {
+    vehicle, messages, input, isLoading, toolProgress, isExpanded,
+    showScrollButton, quickQuestions,
+    messagesEndRef, scrollAreaRef, inputRef,
+    onScroll: handleScroll,
+    onSend: sendMessage,
+    onInputChange: setInput,
+    onExpand: () => setIsExpanded(p => !p),
+    onClose,
+    onDragStart: !isExpanded ? onDragStart : undefined,
+    useExternalLayout,
+  };
+
+  // When expanded, render via portal at document.body so it breaks out of
+  // any parent overflow:hidden / stacking context (e.g. FleetMap container)
+  if (isExpanded) {
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+        <div className="w-full h-full max-w-5xl max-h-[95vh]">
+          <ChatUI {...sharedProps} />
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  // Normal (non-expanded) render
+  if (useExternalLayout) {
+    return <ChatUI {...sharedProps} />;
+  }
+
   return (
-    <Card
-      className={cn(
-        'flex flex-col shadow-2xl border-2 border-primary/20 overflow-hidden',
-        useExternalLayout
-          ? 'w-full h-full'
-          : isExpanded
-          ? 'fixed inset-3 sm:inset-6 z-50 w-auto h-auto'
-          : 'w-[420px] max-w-[95vw] h-[520px] sm:h-[560px]'
-      )}
-    >
-      <CardHeader
-        className={cn(
-          'pb-2 flex-shrink-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-t-lg',
-          onDragStart && 'cursor-grab active:cursor-grabbing select-none'
-        )}
-        onMouseDown={onDragStart}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-sm">AI Fleet Companion</CardTitle>
-              <p className="text-xs text-muted-foreground">{vehicle.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {!useExternalLayout && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setIsExpanded(prev => !prev)}
-                aria-label={isExpanded ? 'Collapse chat window' : 'Expand chat window'}
-              >
-                {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7" aria-label="Close chat">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex-1 flex flex-col p-3 overflow-hidden">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin pr-1 mb-3 min-h-0">
-          {messages.map((msg, i) => (
-            <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-              {msg.role === 'assistant' && (
-                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Bot className="h-3 w-3 text-primary" />
-                </div>
-              )}
-              <div className={cn(
-                'rounded-xl px-3 py-2 text-sm max-w-[80%]',
-                msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground'
-              )}>
-                {msg.role === 'assistant' ? (
-                  <div className="space-y-2">
-                    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-pre:my-2 prose-code:break-all prose-a:text-primary prose-a:break-all prose-a:no-underline hover:prose-a:underline prose-table:block prose-table:overflow-x-auto">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content || '_Working on your request..._'}
-                      </ReactMarkdown>
-                    </div>
-                    {msg.artifacts && msg.artifacts.length > 0 && (
-                      <ArtifactTabs artifacts={msg.artifacts} summary={msg.content} />
-                    )}
-                  </div>
-                ) : (
-                  <span className="whitespace-pre-wrap">{msg.content}</span>
-                )}
-              </div>
-              {msg.role === 'user' && (
-                <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 mt-1">
-                  <User className="h-3 w-3" />
-                </div>
-              )}
-            </div>
-          ))}
-          {isLoading && assistantNotStarted(messages) && (
-            <div className="flex gap-2">
-              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <Bot className="h-3 w-3 text-primary" />
-              </div>
-              <div className="bg-muted rounded-xl px-3 py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            </div>
-          )}
-          {isLoading && toolProgress.length > 0 && (
-            <div className="flex justify-start">
-              <div className="bg-muted rounded-xl px-3 py-2 max-w-[80%]">
-                <div className="text-xs text-muted-foreground mb-1">Tools running</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {toolProgress.map((tool, i) => (
-                    <span key={`${tool}-${i}`} className="rounded-full bg-primary/15 text-primary px-2 py-0.5 text-[11px]">
-                      {tool}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Quick Questions */}
-        {messages.length <= 1 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {quickQuestions.map(q => (
-              <button
-                key={q}
-                onClick={() => { setInput(q); }}
-                className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Input */}
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
-          <Input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about this vehicle..."
-            className="flex-1 h-9 text-sm"
-            disabled={isLoading}
-          />
-          <Button type="submit" size="icon" className="h-9 w-9" disabled={isLoading || !input.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="w-[min(440px,95vw)] h-[min(580px,90vh)]">
+      <ChatUI {...sharedProps} />
+    </div>
   );
 };
 
-function assistantNotStarted(messages: Message[]) {
-  const last = messages[messages.length - 1];
-  return last?.role === 'user';
-}
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function isAddressQuery(text: string) {
   return /\b(address|location|where|street|map)\b/i.test(text);
 }
-
 function containsStreetAddress(text: string) {
   return /\b(address|street|road|avenue|lane|blvd|drive|sector|block|near)\b/i.test(text);
 }
 
-function ArtifactTabs({ artifacts, summary }: { artifacts: ChatArtifact[]; summary: string }) {
+// ─── ArtifactTabs ─────────────────────────────────────────────────────────────
+
+function ArtifactTabs({ artifacts, isExpanded }: { artifacts: ChatArtifact[]; isExpanded: boolean }) {
   const combined = useMemo(() => {
     const result: ChatArtifact = {};
     for (const artifact of artifacts) {
@@ -360,106 +498,144 @@ function ArtifactTabs({ artifacts, summary }: { artifacts: ChatArtifact[]; summa
     return result;
   }, [artifacts]);
 
-  const hasSummary = Boolean(summary?.trim());
   const hasTable = Boolean(combined.csv);
   const hasChart = Boolean(combined.plotlyJson);
   const hasHtml = Boolean(combined.html);
+  const htmlIsMap = combined.html ? isMapHtml(combined.html) : false;
 
-  const tabs: Array<{ key: 'summary' | 'table' | 'chart' | 'html'; label: string }> = [];
-  if (hasSummary) tabs.push({ key: 'summary', label: 'Summary' });
+  const tabs: Array<{ key: 'table' | 'chart' | 'html'; label: string }> = [];
   if (hasTable) tabs.push({ key: 'table', label: 'Table' });
   if (hasChart) tabs.push({ key: 'chart', label: 'Chart' });
-  if (hasHtml) tabs.push({ key: 'html', label: 'HTML' });
+  if (hasHtml) tabs.push({ key: 'html', label: htmlIsMap ? '🗺 Map' : 'HTML' });
 
-  const defaultTab = tabs[0]?.key;
-  if (!defaultTab) return null;
+  const defaultTab = (hasHtml ? 'html' : hasChart ? 'chart' : 'table') as 'table' | 'chart' | 'html';
+  if (tabs.length === 0) return null;
+
+  const gridCols = tabs.length === 1 ? 'grid-cols-1' : tabs.length === 2 ? 'grid-cols-2' : 'grid-cols-3';
 
   return (
-    <Tabs defaultValue={defaultTab} className="rounded-md border bg-background/70 p-2 text-xs">
-      <TabsList className={cn('grid w-full', tabs.length === 1 ? 'grid-cols-1' : tabs.length === 2 ? 'grid-cols-2' : tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4')}>
+    <Tabs defaultValue={defaultTab} className="w-full rounded-xl border border-border bg-background/60 overflow-hidden text-xs">
+      <TabsList className={cn('grid w-full h-9 rounded-b-none rounded-t-xl border-b border-border bg-muted/60', gridCols)}>
         {tabs.map((tab) => (
-          <TabsTrigger key={tab.key} value={tab.key}>
+          <TabsTrigger key={tab.key} value={tab.key} className="text-xs h-8 rounded-none first:rounded-tl-xl last:rounded-tr-xl">
             {tab.label}
           </TabsTrigger>
         ))}
       </TabsList>
 
-      <TabsContent value="summary" className="mt-2">
-        <div className="text-muted-foreground">Assistant explanation is shown above.</div>
-      </TabsContent>
-
-      <TabsContent value="table" className="mt-2">
+      <TabsContent value="table" className="m-0 p-2">
         {combined.csv && <CsvTable csv={combined.csv} />}
       </TabsContent>
 
-      <TabsContent value="chart" className="mt-2">
-        {combined.plotlyJson && <PlotlyArtifact plotlyJson={combined.plotlyJson} />}
+      <TabsContent value="chart" className="m-0 p-2">
+        {combined.plotlyJson && <PlotlyArtifact plotlyJson={combined.plotlyJson} isExpanded={isExpanded} />}
       </TabsContent>
 
-      <TabsContent value="html" className="mt-2">
-        {combined.html && (
-          <div>
-            <div className="max-h-64 overflow-auto rounded border p-2 bg-background">
-              <iframe
-                title="artifact-html"
-                className="w-full min-h-40 border-0"
-                srcDoc={combined.html}
-                sandbox=""
-              />
-            </div>
-          </div>
-        )}
+      <TabsContent value="html" className="m-0">
+        {combined.html && <HtmlArtifact html={combined.html} isMap={htmlIsMap} isExpanded={isExpanded} />}
       </TabsContent>
     </Tabs>
   );
 }
+
+// ─── HtmlArtifact ─────────────────────────────────────────────────────────────
+
+function HtmlArtifact({ html, isMap, isExpanded }: { html: string; isMap: boolean; isExpanded: boolean }) {
+  const iframeHeight = isMap ? (isExpanded ? 520 : 380) : (isExpanded ? 400 : 280);
+  const blobUrl = useMemo(() => {
+    try {
+      const blob = new Blob([html], { type: 'text/html' });
+      return URL.createObjectURL(blob);
+    } catch {
+      return undefined;
+    }
+  }, [html]);
+
+  useEffect(() => {
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+  }, [blobUrl]);
+
+  return (
+    <div className="relative">
+      <iframe
+        title="artifact-html"
+        src={blobUrl}
+        className="w-full border-0 block"
+        style={{ height: `${iframeHeight}px` }}
+        sandbox="allow-scripts allow-same-origin"
+      />
+      {blobUrl && (
+        <a
+          href={blobUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute top-2 right-2 flex items-center gap-1 text-[10px] bg-background/80 backdrop-blur-sm border border-border rounded px-2 py-1 hover:bg-accent transition-colors text-muted-foreground"
+          title="Open in new tab"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Full screen
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ─── CsvTable ─────────────────────────────────────────────────────────────────
 
 function CsvTable({ csv }: { csv: string }) {
   const lines = csv.trim().split('\n').filter(Boolean);
   if (lines.length === 0) return null;
   const rows = lines.map((line) => line.split(','));
   const header = rows[0];
-  const body = rows.slice(1, 11);
+  const body = rows.slice(1, 20);
 
   return (
-    <div className="space-y-1">
-      <div className="font-medium">Table</div>
-      <div className="overflow-auto rounded border max-h-56">
-        <table className="w-full min-w-[420px] text-[11px]">
-          <thead className="bg-muted/50">
-            <tr>
-              {header.map((cell, i) => (
-                <th key={i} className="px-2 py-1 text-left font-medium">
-                  {cell || '-'}
-                </th>
+    <div className="overflow-auto rounded-lg border max-h-72 w-full">
+      <table className="w-full min-w-[360px] text-[11px]">
+        <thead className="bg-muted/60 sticky top-0">
+          <tr>
+            {header.map((cell, i) => (
+              <th key={i} className="px-2 py-1.5 text-left font-semibold text-foreground border-b">
+                {cell.trim() || '-'}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, r) => (
+            <tr key={r} className={r % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+              {header.map((_, c) => (
+                <td key={c} className="px-2 py-1 border-t border-border/40">
+                  {row[c]?.trim() || '-'}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {body.map((row, r) => (
-              <tr key={r} className="border-t">
-                {header.map((_, c) => (
-                  <td key={c} className="px-2 py-1">
-                    {row[c] || '-'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function PlotlyArtifact({ plotlyJson }: { plotlyJson: string }) {
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+// ─── PlotlyArtifact ───────────────────────────────────────────────────────────
+
+function PlotlyArtifact({ plotlyJson, isExpanded }: { plotlyJson: string; isExpanded: boolean }) {
+  const [containerWidth, setContainerWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setContainerWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
   }, []);
+
+  const isMobile = containerWidth > 0 && containerWidth < 360;
+  const chartHeight = isExpanded ? 420 : isMobile ? 220 : 300;
 
   const parsed = useMemo(() => {
     try {
@@ -468,67 +644,45 @@ function PlotlyArtifact({ plotlyJson }: { plotlyJson: string }) {
         layout?: Record<string, unknown>;
         config?: Record<string, unknown>;
       };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }, [plotlyJson]);
 
   if (!parsed?.data || parsed.data.length === 0) {
     return (
-      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded border p-2 bg-background">
+      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg border p-2 bg-background text-[11px]">
         {plotlyJson}
       </pre>
     );
   }
 
   return (
-    <div className="rounded border bg-background p-1 overflow-hidden">
+    <div ref={containerRef} className="rounded-lg border bg-background overflow-hidden w-full">
       <Plot
         data={parsed.data}
         layout={{
           ...(parsed.layout ?? {}),
           autosize: true,
           font: { size: isMobile ? 10 : 12, ...(parsed.layout?.font as object | undefined) },
-          title: typeof parsed.layout?.title === 'string'
-            ? { text: parsed.layout.title, x: 0.02, xanchor: 'left', automargin: true, font: { size: isMobile ? 12 : 14 } }
-            : { x: 0.02, xanchor: 'left', automargin: true, ...(parsed.layout?.title as object | undefined), font: { size: isMobile ? 12 : 14, ...((parsed.layout?.title as any)?.font ?? {}) } },
-          margin: { l: isMobile ? 60 : 72, r: 18, t: isMobile ? 64 : 68, b: isMobile ? 68 : 74, pad: 8, ...(parsed.layout?.margin as object | undefined) },
-          xaxis: {
-            ...((parsed.layout?.xaxis as object | undefined) ?? {}),
-            automargin: true,
-            showticklabels: true,
-            ticklabelposition: 'outside',
-            tickangle: isMobile ? -30 : 0,
-            ticks: 'outside',
-            ticklen: 4,
-            nticks: isMobile ? 5 : 7,
-            tickfont: { size: isMobile ? 10 : 11, color: 'currentColor', ...((parsed.layout?.xaxis as any)?.tickfont ?? {}) },
-            title: {
-              ...((parsed.layout?.xaxis as any)?.title ?? {}),
-              standoff: isMobile ? 14 : 18,
-              font: { size: isMobile ? 11 : 12, ...((parsed.layout?.xaxis as any)?.title?.font ?? {}) },
-            },
-          },
-          yaxis: {
-            ...((parsed.layout?.yaxis as object | undefined) ?? {}),
-            automargin: true,
-            showticklabels: true,
-            ticklabelposition: 'outside',
-            ticks: 'outside',
-            ticklen: 4,
-            tickfont: { size: isMobile ? 10 : 11, color: 'currentColor', ...((parsed.layout?.yaxis as any)?.tickfont ?? {}) },
-            title: {
-              ...((parsed.layout?.yaxis as any)?.title ?? {}),
-              standoff: isMobile ? 10 : 14,
-              font: { size: isMobile ? 11 : 12, ...((parsed.layout?.yaxis as any)?.title?.font ?? {}) },
-            },
-          },
-          legend: { orientation: 'h', y: -0.22, x: 0, ...((parsed.layout?.legend as object | undefined) ?? {}) },
+          title:
+            typeof parsed.layout?.title === 'string'
+              ? { text: parsed.layout.title, x: 0.02, xanchor: 'left', automargin: true, font: { size: isMobile ? 12 : 13 } }
+              : { x: 0.02, xanchor: 'left', automargin: true, ...(parsed.layout?.title as object | undefined) },
+          margin: { l: isMobile ? 52 : 64, r: 16, t: isMobile ? 56 : 60, b: isMobile ? 60 : 68, pad: 6, ...(parsed.layout?.margin as object | undefined) },
+          xaxis: { ...((parsed.layout?.xaxis as object | undefined) ?? {}), automargin: true, tickangle: isMobile ? -30 : 0, nticks: isMobile ? 4 : 7, tickfont: { size: isMobile ? 9 : 10 } },
+          yaxis: { ...((parsed.layout?.yaxis as object | undefined) ?? {}), automargin: true, tickfont: { size: isMobile ? 9 : 10 } },
+          legend: { orientation: 'h', y: -0.24, x: 0, font: { size: 10 }, ...((parsed.layout?.legend as object | undefined) ?? {}) },
           paper_bgcolor: 'rgba(0,0,0,0)',
           plot_bgcolor: 'rgba(0,0,0,0)',
         }}
-        config={{ responsive: true, displaylogo: false, displayModeBar: false, scrollZoom: false, ...(parsed.config ?? {}) }}
-        style={{ width: '100%', height: isMobile ? '240px' : '320px' }}
+        config={{
+          responsive: true,
+          displaylogo: false,
+          displayModeBar: 'hover',
+          modeBarButtonsToRemove: ['lasso2d', 'select2d', 'sendDataToCloud'],
+          scrollZoom: false,
+          ...(parsed.config ?? {}),
+        }}
+        style={{ width: '100%', height: `${chartHeight}px` }}
         useResizeHandler
       />
     </div>
