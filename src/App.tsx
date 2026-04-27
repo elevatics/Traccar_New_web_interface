@@ -16,6 +16,7 @@ import Reports from "./pages/Reports";
 import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import UserAccess from "./pages/UserAccess";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -56,6 +57,7 @@ const App = () => (
                 <Route path="/finance" element={<Finance />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/user-access" element={<UserAccess />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

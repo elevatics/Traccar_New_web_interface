@@ -21,6 +21,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Plot from 'react-plotly.js';
+import {
+  parsePromptRuleCommand,
+  upsertSpeedRule,
+  upsertStatusRule,
+} from '@/services/notificationRulesService';
+import { upsertServerRule } from '@/services/serverRuleEngineService';
 
 type ChatArtifact = {
   csv?: string;
@@ -326,6 +332,64 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
     const userMsg: Message = { role: 'user', content: input.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+
+    const parsedRule = parsePromptRuleCommand(userMsg.content);
+    if (parsedRule) {
+      if (parsedRule.kind === 'speed') {
+        const savedRule = upsertSpeedRule({
+          deviceId: vehicle.deviceId,
+          vehicleName: vehicle.name,
+          limit: parsedRule.limit,
+        });
+        void upsertServerRule({
+          deviceId: vehicle.deviceId,
+          vehicleName: vehicle.name,
+          metric: 'speed',
+          limit: parsedRule.limit,
+          enabled: true,
+        });
+
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              savedRule.limit == null
+                ? `Custom speed rule cleared for **${vehicle.name}**. Limit is now **null** and no custom overspeed alerts will trigger.`
+                : `Custom speed rule saved for **${vehicle.name}**: alert when speed crosses **${savedRule.limit} km/h**. You will see it in the notification bell.`,
+          },
+        ]);
+        return;
+      }
+
+      const savedRule = upsertStatusRule({
+        deviceId: vehicle.deviceId,
+        vehicleName: vehicle.name,
+        metric: parsedRule.kind,
+        enabled: parsedRule.enabled,
+      });
+      void upsertServerRule({
+        deviceId: vehicle.deviceId,
+        vehicleName: vehicle.name,
+        metric: parsedRule.kind,
+        limit: null,
+        enabled: parsedRule.enabled,
+      });
+      const statusText = savedRule.metric === 'device_offline' ? 'goes offline' : 'comes online';
+      const clearText = savedRule.metric === 'device_offline' ? 'offline' : 'online';
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: savedRule.enabled
+            ? `Custom status rule saved for **${vehicle.name}**: notify me when it **${statusText}**. You will see it in the notification bell.`
+            : `Custom ${clearText} rule cleared for **${vehicle.name}**.`,
+        },
+      ]);
+      return;
+    }
+
     setIsLoading(true);
     setToolProgress([]);
 

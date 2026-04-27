@@ -10,7 +10,9 @@ import {
   Settings,
   User,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -28,6 +30,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useUserRole, rolePermissions } from "@/contexts/UserRoleContext";
 import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
+import { getCurrentSession } from "@/services/authService";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -45,12 +48,29 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { role } = useUserRole();
   const { logout } = useTraccarAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const collapsed = state === "collapsed";
 
   const allowedPaths = rolePermissions[role];
   const filteredMenuItems = menuItems.filter((item) =>
     allowedPaths.includes(item.url),
   );
+
+  useEffect(() => {
+    let mounted = true;
+    void getCurrentSession()
+      .then((session: any) => {
+        if (!mounted) return;
+        setIsAdmin(Boolean(session?.administrator));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setIsAdmin(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <Sidebar collapsible="icon">
@@ -93,6 +113,23 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isAdmin && allowedPaths.includes("/user-access") ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="User Access">
+                    <NavLink
+                      to="/user-access"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : ""
+                      }
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>User Access</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

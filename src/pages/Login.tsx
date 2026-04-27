@@ -8,7 +8,9 @@ import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { isAuthenticated, login } = useTraccarAuth();
+  const { isAuthenticated, login, signup } = useTraccarAuth();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -23,11 +25,17 @@ export default function Login() {
     try {
       setSubmitting(true);
       setError(null);
-      await login(email, password);
+      if (mode === "signup") {
+        await signup(name, email, password, "traccar");
+      } else {
+        await login(email, password, "traccar");
+      }
       navigate("/", { replace: true });
     } catch (err: any) {
       if (err?.response?.status === 401) {
         setError("Invalid credentials. Please check email and password.");
+      } else if (err?.response?.status === 409) {
+        setError("Email already exists. Please sign in instead.");
       } else {
         setError(err?.message || "Login failed. Please try again.");
       }
@@ -40,18 +48,53 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Traccar Login</CardTitle>
+          <CardTitle>{mode === "signup" ? "Create account" : "Sign in"}</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={mode === "signin" ? "default" : "outline"}
+              onClick={() => {
+                setMode("signin");
+                setError(null);
+              }}
+            >
+              Sign in
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "signup" ? "default" : "outline"}
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+              }}
+            >
+              Sign up
+            </Button>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" ? (
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  required
+                />
+              </div>
+            ) : null}
             <div className="space-y-2">
-              <Label htmlFor="email">Email or Username</Label>
+              <Label htmlFor="email">Traccar username or email</Label>
               <Input
                 id="email"
                 type="text"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="admin"
+                placeholder="admin or name@example.com"
                 autoComplete="username"
                 required
               />
@@ -69,7 +112,13 @@ export default function Login() {
             </div>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Signing in..." : "Sign in"}
+              {submitting
+                ? mode === "signup"
+                  ? "Creating account..."
+                  : "Signing in..."
+                : mode === "signup"
+                ? "Create account"
+                : "Sign in"}
             </Button>
           </form>
         </CardContent>

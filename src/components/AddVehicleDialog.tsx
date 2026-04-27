@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
-import { createDevice } from '@/services/deviceService';
+import { createDevice, getDevices } from '@/services/deviceService';
 
 interface AddVehicleDialogProps {
   open: boolean;
@@ -47,6 +47,15 @@ export default function AddVehicleDialog({ open, onOpenChange, onVehicleAdded }:
 
     setLoading(true);
     try {
+      const existingDevices = await getDevices();
+      const normalizedIdentifier = form.identifier.trim().toLowerCase();
+      const duplicate = existingDevices.find(
+        (device: any) => String(device?.uniqueId || '').trim().toLowerCase() === normalizedIdentifier
+      );
+      if (duplicate) {
+        throw new Error(`Identifier "${form.identifier.trim()}" already exists. Use a unique identifier.`);
+      }
+
       await createDevice({
         name: form.name,
         uniqueId: form.identifier,
@@ -64,9 +73,17 @@ export default function AddVehicleDialog({ open, onOpenChange, onVehicleAdded }:
         await onVehicleAdded();
       }
     } catch (error: any) {
+      const serverMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.response?.data?.details ||
+        error?.response?.data;
       toast({
         title: 'Failed to add vehicle',
-        description: error?.message || 'Unable to create device in Traccar',
+        description:
+          (typeof serverMessage === 'string' && serverMessage) ||
+          error?.message ||
+          'Unable to create device in Traccar',
         variant: 'destructive',
       });
       setLoading(false);

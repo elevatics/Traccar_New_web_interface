@@ -72,7 +72,7 @@ const NotificationBell = () => {
     markAllAsRead,
     clearNotification,
     clearAll,
-  } = useNotifications(deviceNameMap);
+  } = useNotifications(deviceNameMap, fleetData as any[]);
 
   return (
     <Popover>
@@ -167,6 +167,9 @@ const NotificationBell = () => {
                             Warning
                           </Badge>
                         )}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase tracking-wide">
+                          {n.source === 'custom' ? 'Custom Rule' : 'Traccar'}
+                        </Badge>
                       </div>
                     </div>
                     <Button
