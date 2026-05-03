@@ -76,6 +76,50 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const getStatusColor = (status?: string) => STATUS_COLORS[status || ''] || STATUS_COLORS.unknown;
+
+const FLEET_MAP_VIEW_STORAGE_KEY = 'fleet_map_last_view';
+
+function readStoredFleetMapView(): { center: [number, number]; zoom: number } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(FLEET_MAP_VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { center?: unknown; zoom?: unknown };
+    if (
+      Array.isArray(o.center) &&
+      o.center.length === 2 &&
+      typeof o.center[0] === 'number' &&
+      typeof o.center[1] === 'number' &&
+      typeof o.zoom === 'number' &&
+      Number.isFinite(o.center[0]) &&
+      Number.isFinite(o.center[1]) &&
+      Number.isFinite(o.zoom)
+    ) {
+      const [lng, lat] = o.center;
+      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      return { center: [lng, lat], zoom: Math.min(18, Math.max(4, o.zoom)) };
+    }
+  } catch {
+    // ignore invalid JSON
+  }
+  return null;
+}
+
+function persistFleetMapView(mapInstance: mapboxgl.Map) {
+  const z = mapInstance.getZoom();
+  // Avoid persisting the default whole-earth view before fleet data fits the map
+  if (z < 4) return;
+  try {
+    const c = mapInstance.getCenter();
+    window.sessionStorage.setItem(
+      FLEET_MAP_VIEW_STORAGE_KEY,
+      JSON.stringify({ center: [c.lng, c.lat], zoom: z })
+    );
+  } catch {
+    // quota / private mode
+  }
+}
+
 const toVehicleStatus = (status?: string): Vehicle['status'] => {
   if (status === 'online' || status === 'idle' || status === 'offline') {
     return status;
@@ -134,6 +178,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
   const hasAutoCentered = useRef(false);
+  /** Avoid calling setStyle on mount — it reloads the style and resets camera after auto-fit. */
+  const skipInitialStyleReload = useRef(true);
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
@@ -209,16 +255,27 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   useEffect(() => {
     if (!mapContainer.current || !apiToken) return;
 
+    skipInitialStyleReload.current = true;
+
     mapboxgl.accessToken = apiToken;
 
+    const storedView = readStoredFleetMapView();
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      // Start zoomed out — fitBounds will center on actual device locations once data loads
-      center: [0, 20],
-      zoom: 2,
+      center: storedView?.center ?? [0, 20],
+      zoom: storedView?.zoom ?? 2,
       pitch: 0,
     });
+
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePersistView = () => {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
+        if (map.current) persistFleetMapView(map.current);
+      }, 500);
+    };
+    map.current.on('moveend', schedulePersistView);
 
     map.current.addControl(
       new mapboxgl.NavigationControl({
@@ -230,6 +287,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
     return () => {
+      if (persistTimer) clearTimeout(persistTimer);
+      map.current?.off('moveend', schedulePersistView);
       Object.values(markers.current).forEach((entry) => entry.marker.remove());
       markers.current = {};
       map.current?.remove();
@@ -458,6 +517,11 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
 
   useEffect(() => {
     if (!map.current) return;
+
+    if (skipInitialStyleReload.current) {
+      skipInitialStyleReload.current = false;
+      return;
+    }
 
     const styleUrls = {
       streets: 'mapbox://styles/mapbox/streets-v12',

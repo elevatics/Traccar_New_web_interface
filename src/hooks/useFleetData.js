@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDevices } from "../services/deviceService";
 import { getPositions } from "../services/positionService";
 import { mapDeviceData } from "../utils/mapDeviceData";
+import { fetchLastFuelByDeviceIds } from "../services/lastFuelService";
 
 const POLLING_INTERVAL_MS = 5000;
 
@@ -20,7 +21,9 @@ const isSameFleetData = (previous, next) => {
       prevItem.status !== nextItem.status ||
       prevItem.lat !== nextItem.lat ||
       prevItem.lng !== nextItem.lng ||
-      prevItem.speed !== nextItem.speed
+      prevItem.speed !== nextItem.speed ||
+      prevItem.fuel !== nextItem.fuel ||
+      prevItem.fuelLevel !== nextItem.fuelLevel
     ) {
       return false;
     }
@@ -45,9 +48,46 @@ export const useFleetData = () => {
       ]);
 
       const mergedData = mapDeviceData(devices, positions);
-      if (!isSameFleetData(fleetDataRef.current, mergedData)) {
-        fleetDataRef.current = mergedData;
-        setFleetData(mergedData);
+      const backendFuelByDeviceId = await fetchLastFuelByDeviceIds(
+        mergedData.map((item) => item.deviceId)
+      ).catch(() => new Map());
+      const previousById = new Map(
+        fleetDataRef.current.map((item) => [String(item.id), item])
+      );
+      const hydratedFuelData = mergedData.map((item) => {
+        const previous = previousById.get(String(item.id));
+        const nextItem = { ...item };
+
+        if (nextItem.fuel <= 0 && previous?.fuel > 0) {
+          nextItem.fuel = previous.fuel;
+        }
+
+        if (nextItem.fuelLevel <= 0 && previous?.fuelLevel > 0) {
+          nextItem.fuelLevel = previous.fuelLevel;
+        }
+
+        const backendFuel = backendFuelByDeviceId.get(Number(item.deviceId));
+        if (nextItem.fuel <= 0 && Number(backendFuel?.fuel) > 0) {
+          nextItem.fuel = Number(backendFuel.fuel);
+        }
+
+        if (nextItem.fuelLevel <= 0 && Number(backendFuel?.fuelLevel) > 0) {
+          nextItem.fuelLevel = Number(backendFuel.fuelLevel);
+        }
+
+        if (nextItem.fuel <= 0 && nextItem.fuelLevel > 0) {
+          nextItem.fuel = nextItem.fuelLevel;
+        }
+
+        if (nextItem.fuelLevel <= 0 && nextItem.fuel > 0) {
+          nextItem.fuelLevel = nextItem.fuel;
+        }
+
+        return nextItem;
+      });
+      if (!isSameFleetData(fleetDataRef.current, hydratedFuelData)) {
+        fleetDataRef.current = hydratedFuelData;
+        setFleetData(hydratedFuelData);
       }
     } catch (err) {
       if (err?.response?.status === 401) {

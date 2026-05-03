@@ -84,7 +84,9 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
   })();
 
   const isOutdated = vehicle.outdated;
-  const fuelLow = vehicle.fuel < 20;
+  /** Prefer primary fuel reading; fall back to fuelLevel when fuel is unset/zero (stash behavior). */
+  const latestFuelPercent = vehicle.fuel > 0 ? vehicle.fuel : vehicle.fuelLevel;
+  const fuelLow = latestFuelPercent < 20;
   const speedKmh = Math.round(vehicle.speed * 1.852);
 
   const getDirectionLabel = (course: number) => {
@@ -179,7 +181,7 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
         {/* ── SECTION 3: Vehicle Health ── */}
         <SectionLabel icon={<Fuel className="h-3.5 w-3.5" />} label="Vehicle Health" />
         <div className="space-y-2">
-          {/* Fuel bar */}
+          {/* Fuel bar — uses latestFuelPercent (fuel or fuelLevel fallback) */}
           <div className="rounded-xl bg-muted/50 border border-border/60 p-3 space-y-1.5">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -187,7 +189,7 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
                 <span>Fuel Level</span>
               </div>
               <span className={cn("font-semibold", fuelLow ? "text-orange-500" : "text-foreground")}>
-                {vehicle.fuel}%
+                {latestFuelPercent}%
                 {fuelLow && <AlertTriangle className="h-3.5 w-3.5 inline ml-1 text-orange-500" />}
               </span>
             </div>
@@ -195,9 +197,9 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
               <div
                 className={cn(
                   "h-full rounded-full transition-all",
-                  vehicle.fuel < 20 ? "bg-orange-500" : vehicle.fuel < 50 ? "bg-yellow-500" : "bg-green-500"
+                  latestFuelPercent < 20 ? "bg-orange-500" : latestFuelPercent < 50 ? "bg-yellow-500" : "bg-green-500"
                 )}
-                style={{ width: `${Math.min(100, vehicle.fuel)}%` }}
+                style={{ width: `${Math.min(100, latestFuelPercent)}%` }}
               />
             </div>
           </div>
@@ -242,6 +244,7 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             <SysRow label="Protocol" value={vehicle.protocol || 'N/A'} />
             <SysRow label="Server Time" value={fmtDate(vehicle.serverTime)} icon={<Clock className="h-3 w-3" />} />
             <SysRow label="Device Time" value={fmtDate(vehicle.deviceTime)} />
+            <SysRow label="Fix Time" value={fmtDate(vehicle.fixTime)} />
             <SysRow label="Accuracy" value={`±${vehicle.accuracy}m`} />
             <SysRow
               label="Valid"
@@ -253,6 +256,8 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
               value={vehicle.outdated ? 'Yes' : 'No'}
               valueClass={vehicle.outdated ? 'text-orange-500' : 'text-green-600 dark:text-green-400'}
             />
+            <SysRow label="Fuel %" value={`${latestFuelPercent}%`} icon={<Fuel className="h-3 w-3" />} />
+            <SysRow label="Fuel consumption" value={vehicle.fuelConsumption.toLocaleString()} />
             {vehicle.network && <SysRow label="Network" value={vehicle.network} />}
             {vehicle.rpm !== undefined && <SysRow label="RPM" value={String(vehicle.rpm)} />}
           </div>
