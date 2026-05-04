@@ -120,6 +120,42 @@ function persistFleetMapView(mapInstance: mapboxgl.Map) {
   }
 }
 
+type LatLng = { lat: number; lng: number };
+
+function filterValidCoords(coords: LatLng[]): LatLng[] {
+  return coords.filter(
+    ({ lat, lng }) =>
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lng) <= 180 &&
+      !(lat === 0 && lng === 0)
+  );
+}
+
+/** Rough center/zoom before Map has fitBounds (first paint, no sessionStorage). */
+function approximateViewFromCoords(coords: LatLng[]): { center: [number, number]; zoom: number } | null {
+  const pts = filterValidCoords(coords);
+  if (pts.length === 0) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  pts.forEach(({ lat, lng }) => {
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+    minLng = Math.min(minLng, lng);
+    maxLng = Math.max(maxLng, lng);
+  });
+  const center: [number, number] = [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+  const latSpan = Math.max(1e-6, maxLat - minLat);
+  const lngSpan = Math.max(1e-6, maxLng - minLng);
+  const span = Math.max(latSpan, lngSpan, pts.length === 1 ? 0.06 : 0);
+  const zoom =
+    span > 40 ? 3.5 : span > 20 ? 4.5 : span > 10 ? 5.5 : span > 5 ? 6.5 : span > 2 ? 7.5 : span > 1 ? 8.5 : span > 0.5 ? 9.5 : span > 0.2 ? 10.5 : span > 0.1 ? 11.5 : 12.5;
+  return { center, zoom: Math.min(14, Math.max(4, zoom)) };
+}
+
 const toVehicleStatus = (status?: string): Vehicle['status'] => {
   if (status === 'online' || status === 'idle' || status === 'offline') {
     return status;
@@ -177,9 +213,14 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
-  const hasAutoCentered = useRef(false);
+  /** True after we've run fitBounds for live Traccar positions (once per map instance unless re-center). */
+  const hasFittedLiveFleet = useRef(false);
+  /** One-time framing from parent `vehicles` while API positions are still loading. */
+  const hasFittedVehiclePreview = useRef(false);
   /** Avoid calling setStyle on mount — it reloads the style and resets camera after auto-fit. */
   const skipInitialStyleReload = useRef(true);
+  const vehiclesForInitRef = useRef(vehicles);
+  vehiclesForInitRef.current = vehicles;
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
@@ -256,15 +297,25 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     if (!mapContainer.current || !apiToken) return;
 
     skipInitialStyleReload.current = true;
+    hasFittedLiveFleet.current = false;
+    hasFittedVehiclePreview.current = false;
 
     mapboxgl.accessToken = apiToken;
 
     const storedView = readStoredFleetMapView();
+    const bootstrapView =
+      storedView ??
+      approximateViewFromCoords(
+        vehiclesForInitRef.current.map((v) => ({
+          lat: v.location.lat,
+          lng: v.location.lng,
+        }))
+      );
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: storedView?.center ?? [0, 20],
-      zoom: storedView?.zoom ?? 2,
+      center: bootstrapView?.center ?? [0, 20],
+      zoom: bootstrapView?.zoom ?? 2,
       pitch: 0,
     });
 
@@ -465,28 +516,35 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     });
   }, [selectedVehicle]);
 
-  // Utility: compute valid device coordinates from fleet data
-  const getValidCoords = () =>
-    (fleetData as FleetPoint[])
-      .map(item => ({ lat: Number(item.lat), lng: Number(item.lng) }))
-      .filter(
-        ({ lat, lng }) =>
-          Number.isFinite(lat) &&
-          Number.isFinite(lng) &&
-          Math.abs(lat) <= 90 &&
-          Math.abs(lng) <= 180 &&
-          !(lat === 0 && lng === 0)
-      );
+  const getValidFleetCoords = (): LatLng[] =>
+    filterValidCoords(
+      (fleetData as FleetPoint[]).map((item) => ({
+        lat: Number(item.lat),
+        lng: Number(item.lng),
+      }))
+    );
 
-  // Fit map to all device locations
-  const fitToDevices = (duration = 1200) => {
-    if (!map.current) return;
-    const coords = getValidCoords();
-    if (coords.length === 0) return;
+  const getValidVehicleCoords = (): LatLng[] =>
+    filterValidCoords(
+      vehicles.map((v) => ({
+        lat: Number(v.location.lat),
+        lng: Number(v.location.lng),
+      }))
+    );
 
+  const fitToCoords = (coords: LatLng[], duration: number) => {
+    if (!map.current || coords.length === 0) return;
+    if (coords.length === 1) {
+      const { lng, lat } = coords[0];
+      map.current.easeTo({
+        center: [lng, lat],
+        zoom: 13,
+        duration,
+      });
+      return;
+    }
     const bounds = new mapboxgl.LngLatBounds();
     coords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
-
     map.current.fitBounds(bounds, {
       padding: { top: 80, bottom: 80, left: 80, right: 80 },
       maxZoom: 14,
@@ -494,26 +552,48 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     });
   };
 
-  // Auto-center once when device data first becomes available.
-  // Wait for the map style to be fully loaded before calling fitBounds,
-  // otherwise the call is silently ignored and hasAutoCentered is set too early.
-  useEffect(() => {
-    if (!map.current || hasAutoCentered.current || selectedVehicle) return;
-    if (getValidCoords().length === 0) return;
-
-    const doFit = () => {
-      fitToDevices(1200);
-      hasAutoCentered.current = true;
-    };
-
-    if (map.current.isStyleLoaded()) {
-      doFit();
-    } else {
-      // Style not ready yet — queue the fit for when it is
-      map.current.once('load', doFit);
+  // Fit map: prefer live Traccar positions, else parent vehicle list (e.g. loading placeholders).
+  const fitToDevices = (duration = 1200) => {
+    const fleetCoords = getValidFleetCoords();
+    const coords = fleetCoords.length > 0 ? fleetCoords : getValidVehicleCoords();
+    fitToCoords(coords, duration);
+    if (fleetCoords.length > 0) {
+      hasFittedLiveFleet.current = true;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fleetData, selectedVehicle]);
+  };
+
+  const whenMapReady = (fn: () => void) => {
+    if (!map.current) return;
+    if (map.current.loaded()) {
+      fn();
+    } else {
+      map.current.once('load', fn);
+    }
+  };
+
+  // Frame map when positions exist: preview from `vehicles` while API is empty, then live fleet.
+  useEffect(() => {
+    if (!map.current || selectedVehicle) return;
+
+    const fleetCoords = getValidFleetCoords();
+    const vehicleCoords = getValidVehicleCoords();
+
+    if (fleetCoords.length > 0) {
+      if (hasFittedLiveFleet.current) return;
+      whenMapReady(() => {
+        fitToCoords(fleetCoords, fleetCoords.length === 1 ? 400 : 800);
+        hasFittedLiveFleet.current = true;
+      });
+      return;
+    }
+
+    if (vehicleCoords.length > 0 && !hasFittedVehiclePreview.current) {
+      whenMapReady(() => {
+        fitToCoords(vehicleCoords, 0);
+        hasFittedVehiclePreview.current = true;
+      });
+    }
+  }, [fleetData, vehicles, selectedVehicle]);
 
   useEffect(() => {
     if (!map.current) return;
@@ -599,7 +679,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           variant="secondary"
           size="sm"
           onClick={() => {
-            hasAutoCentered.current = false;
+            hasFittedLiveFleet.current = false;
             fitToDevices(800);
           }}
           className="shadow-lg"
