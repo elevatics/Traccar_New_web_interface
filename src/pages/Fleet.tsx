@@ -85,10 +85,21 @@ export default function Fleet() {
           distance: Number(item.distance) || 0,
           totalDistance: Number(item.totalDistance) || 0,
           motion: Boolean(item.motion),
+          deviceImage: item.deviceImage || undefined,
+          deviceImageFront: item.deviceImageFront || item.deviceImage || undefined,
+          deviceImageRear: item.deviceImageRear || undefined,
+          deviceImageLeft: item.deviceImageLeft || undefined,
+          deviceImageRight: item.deviceImageRight || undefined,
+          deviceImageInterior: item.deviceImageInterior || undefined,
+          deviceImageDashboard: item.deviceImageDashboard || undefined,
         } as Vehicle;
       }),
     [fleetData]
   );
+  const selectedLiveVehicle = useMemo(() => {
+    if (!selectedVehicle) return null;
+    return liveVehicles.find((vehicle) => vehicle.id === selectedVehicle.id) || selectedVehicle;
+  }, [liveVehicles, selectedVehicle]);
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -196,7 +207,7 @@ export default function Fleet() {
                           <div className="col-span-1 xl:col-span-2 border rounded-lg overflow-hidden h-[50vh] min-h-[320px] xl:h-auto">
                             <FleetMap 
                               vehicles={liveVehicles} 
-                              selectedVehicle={selectedVehicle}
+                              selectedVehicle={selectedLiveVehicle}
                               onSelectVehicle={setSelectedVehicle}
                               onClearSelection={() => setSelectedVehicle(null)}
                               apiToken={MAPBOX_TOKEN}
@@ -204,13 +215,13 @@ export default function Fleet() {
                           </div>
                           {/* 360 View takes 1/3 */}
                           <div className="col-span-1 h-[50vh] min-h-[320px] xl:h-auto">
-                            <Vehicle360View vehicle={selectedVehicle || liveVehicles[0] || mockVehicles[0]} />
+                            <Vehicle360View vehicle={selectedLiveVehicle || liveVehicles[0] || mockVehicles[0]} />
                           </div>
                         </>
                       ) : (
                         <FleetMap 
                           vehicles={liveVehicles} 
-                          selectedVehicle={selectedVehicle}
+                          selectedVehicle={selectedLiveVehicle}
                           onSelectVehicle={setSelectedVehicle}
                           onClearSelection={() => setSelectedVehicle(null)}
                           apiToken={MAPBOX_TOKEN}
@@ -246,7 +257,7 @@ export default function Fleet() {
                     <div 
                       key={vehicle.id} 
                       className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
-                        selectedVehicle?.id === vehicle.id ? 'border-primary bg-primary/5' : ''
+                        selectedLiveVehicle?.id === vehicle.id ? 'border-primary bg-primary/5' : ''
                       }`}
                       onClick={() => setSelectedVehicle(vehicle)}
                       style={{ cursor: 'pointer' }}

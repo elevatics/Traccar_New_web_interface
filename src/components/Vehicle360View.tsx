@@ -62,6 +62,25 @@ const Vehicle360View = ({ vehicle }: Vehicle360ViewProps) => {
     setIsMuted(false);
   };
 
+  const cameraImageByAngle: Record<CameraAngle, unknown> = {
+    front: vehicle.deviceImageFront || vehicle.deviceImage,
+    rear: vehicle.deviceImageRear,
+    left: vehicle.deviceImageLeft,
+    right: vehicle.deviceImageRight,
+    interior: vehicle.deviceImageInterior,
+    dashboard: vehicle.deviceImageDashboard,
+  };
+  const activeCameraImageRaw = cameraImageByAngle[activeCamera];
+  const activeCameraImageUrl =
+    typeof activeCameraImageRaw === 'string'
+      ? activeCameraImageRaw.trim()
+      : activeCameraImageRaw != null
+        ? String(activeCameraImageRaw)
+        : '';
+  const activeCameraImageSrc = activeCameraImageUrl
+    ? `${activeCameraImageUrl}${activeCameraImageUrl.includes('?') ? '&' : '?'}_ts=${Date.now()}`
+    : undefined;
+
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="pb-2 flex-shrink-0">
@@ -98,15 +117,26 @@ const Vehicle360View = ({ vehicle }: Vehicle360ViewProps) => {
           <TabsContent value="cameras" className="flex-1 flex flex-col gap-2 mt-2 overflow-hidden">
             {/* Camera Feed */}
             <div className="relative flex-1 bg-muted/80 rounded-lg overflow-hidden min-h-[200px]">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <Camera className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-muted-foreground/60">
-                    {activeCamera.charAt(0).toUpperCase() + activeCamera.slice(1)} Camera
-                  </p>
-                  <p className="text-xs text-muted-foreground/40 mt-1">Live feed placeholder</p>
+              {activeCameraImageSrc ? (
+                <img
+                  key={`${vehicle.id}-${activeCamera}-${activeCameraImageUrl}`}
+                  src={activeCameraImageSrc}
+                  alt={`${vehicle.name} ${activeCamera} camera`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Camera className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground/60">
+                      {activeCamera.charAt(0).toUpperCase() + activeCamera.slice(1)} Camera
+                    </p>
+                    <p className="text-xs text-muted-foreground/40 mt-1">
+                      Set `device.attributes.deviceImage{Camera}` URL (for example: deviceImageFront)
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
               {/* Overlay Controls */}
               <div className="absolute top-2 right-2 flex gap-1">
                 <Button variant="secondary" size="icon" className="h-7 w-7 bg-background/80 backdrop-blur-sm" onClick={() => setIsFullscreen(!isFullscreen)}>

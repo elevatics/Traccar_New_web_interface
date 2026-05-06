@@ -10,9 +10,9 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       "/api": {
-        target: "http://15.204.117.106:8082",
+        target: "https://elevaticsiot.com",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
     },
   },

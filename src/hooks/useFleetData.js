@@ -23,7 +23,14 @@ const isSameFleetData = (previous, next) => {
       prevItem.lng !== nextItem.lng ||
       prevItem.speed !== nextItem.speed ||
       prevItem.fuel !== nextItem.fuel ||
-      prevItem.fuelLevel !== nextItem.fuelLevel
+      prevItem.fuelLevel !== nextItem.fuelLevel ||
+      prevItem.deviceImage !== nextItem.deviceImage ||
+      prevItem.deviceImageFront !== nextItem.deviceImageFront ||
+      prevItem.deviceImageRear !== nextItem.deviceImageRear ||
+      prevItem.deviceImageLeft !== nextItem.deviceImageLeft ||
+      prevItem.deviceImageRight !== nextItem.deviceImageRight ||
+      prevItem.deviceImageInterior !== nextItem.deviceImageInterior ||
+      prevItem.deviceImageDashboard !== nextItem.deviceImageDashboard
     ) {
       return false;
     }

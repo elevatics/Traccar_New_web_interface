@@ -40,4 +40,11 @@ export interface Vehicle {
   distance: number;
   totalDistance: number;
   motion: boolean;
+  deviceImage?: string;
+  deviceImageFront?: string;
+  deviceImageRear?: string;
+  deviceImageLeft?: string;
+  deviceImageRight?: string;
+  deviceImageInterior?: string;
+  deviceImageDashboard?: string;
 }

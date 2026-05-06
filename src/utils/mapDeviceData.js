@@ -44,6 +44,8 @@ export const mapDeviceData = (devices = [], positions = []) => {
       const geofenceValue = Array.isArray(geofenceIds)
         ? geofenceIds.join(", ")
         : geofenceIds;
+      const readImage = (key) =>
+        deviceAttributes[key] ?? positionAttributes[key] ?? undefined;
 
       return {
         id: String(device.id),
@@ -116,6 +118,37 @@ export const mapDeviceData = (devices = [], positions = []) => {
           positionAttributes.totalDistance ?? deviceAttributes.totalDistance
         ),
         motion,
+        deviceImage:
+          deviceAttributes.deviceImage ||
+          deviceAttributes.image ||
+          positionAttributes.deviceImage ||
+          positionAttributes.image ||
+          undefined,
+        deviceImageFront:
+          readImage("deviceImageFront") ??
+          readImage("frontImage") ??
+          readImage("frontCameraImage") ??
+          readImage("deviceImage"),
+        deviceImageRear:
+          readImage("deviceImageRear") ??
+          readImage("rearImage") ??
+          readImage("rearCameraImage"),
+        deviceImageLeft:
+          readImage("deviceImageLeft") ??
+          readImage("leftImage") ??
+          readImage("leftCameraImage"),
+        deviceImageRight:
+          readImage("deviceImageRight") ??
+          readImage("rightImage") ??
+          readImage("rightCameraImage"),
+        deviceImageInterior:
+          readImage("deviceImageInterior") ??
+          readImage("interiorImage") ??
+          readImage("insideImage"),
+        deviceImageDashboard:
+          readImage("deviceImageDashboard") ??
+          readImage("dashboardImage") ??
+          readImage("dashcamImage"),
       };
     });
 };
