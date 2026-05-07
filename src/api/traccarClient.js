@@ -49,38 +49,40 @@ traccarClient.interceptors.request.use(
 
     const method = String(config.method || "GET").toUpperCase();
     const url = `${config.baseURL || ""}${config.url || ""}`;
-    console.info("[Traccar API][Request]", {
-      method,
-      url,
-      withCredentials: config.withCredentials,
-      hasAuthorization: Boolean(config.headers?.Authorization),
-      params: config.params || null,
-      data: config.data || null,
-    });
+    // console.info("[Traccar API][Request]", {
+    //   method,
+    //   url,
+    //   withCredentials: config.withCredentials,
+    //   hasAuthorization: Boolean(config.headers?.Authorization),
+    //   params: config.params || null,
+    //   data: config.data || null,
+    // });
     return config;
   },
   (error) => {
     console.error("[Traccar API][Request Error]", error?.message || error);
     return Promise.reject(error);
-  }
+  },
 );
 
 traccarClient.interceptors.response.use(
   (response) => {
     const method = String(response.config?.method || "GET").toUpperCase();
     const url = `${response.config?.baseURL || ""}${response.config?.url || ""}`;
-    console.info("[Traccar API][Response]", {
-      method,
-      url,
-      status: response.status,
-      statusText: response.statusText,
-      hasData:
-        Array.isArray(response.data) || typeof response.data === "object"
-          ? true
-          : Boolean(response.data),
-      dataCount: Array.isArray(response.data) ? response.data.length : undefined,
-      data: response.data,
-    });
+    // console.info("[Traccar API][Response]", {
+    //   method,
+    //   url,
+    //   status: response.status,
+    //   statusText: response.statusText,
+    //   hasData:
+    //     Array.isArray(response.data) || typeof response.data === "object"
+    //       ? true
+    //       : Boolean(response.data),
+    //   dataCount: Array.isArray(response.data)
+    //     ? response.data.length
+    //     : undefined,
+    //   data: response.data,
+    // });
     return response;
   },
   (error) => {
@@ -89,7 +91,8 @@ traccarClient.interceptors.response.use(
     const url = `${config.baseURL || ""}${config.url || ""}`;
     const status = error?.response?.status;
     const responseData = error?.response?.data;
-    const message = responseData?.message || error?.message || "Unexpected API error";
+    const message =
+      responseData?.message || error?.message || "Unexpected API error";
 
     const diagnostics = {
       method,
@@ -120,7 +123,7 @@ traccarClient.interceptors.response.use(
 
     console.error("[Traccar API][Response Error]", diagnostics);
     return Promise.reject(error);
-  }
+  },
 );
 
 export default traccarClient;
