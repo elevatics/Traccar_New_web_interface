@@ -50,7 +50,7 @@ interface VehicleAIChatProps {
   useExternalLayout?: boolean;
 }
 
-const CHAT_URL = 'https://api1001.elevatics.online/v3/chat';
+const CHAT_URL = 'https://traccar-agent-v2.elevatics.site/api/v1/chat';
 
 const isMapHtml = (html: string) =>
   /leaflet|mapbox|L\.map|google\.maps|openstreetmap|ol\.Map|maplibre/i.test(html);
