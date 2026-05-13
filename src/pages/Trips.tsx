@@ -225,10 +225,6 @@ export default function Trips() {
       <Card className="border-border/70">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
-          <CardDescription>
-            Trips use Traccar <code className="text-xs">GET /api/reports/trips</code> (ISO <code className="text-xs">from</code> /{" "}
-            <code className="text-xs">to</code>, one or more <code className="text-xs">deviceId</code>).
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

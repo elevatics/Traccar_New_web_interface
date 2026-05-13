@@ -6,6 +6,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { Layout } from "./components/Layout";
 import { UserRoleProvider } from "./contexts/UserRoleContext";
 import { TraccarAuthProvider, useTraccarAuth } from "./contexts/TraccarAuthContext";
+import { TrackingPrefsProvider } from "./contexts/TrackingPrefsContext";
 import Index from "./pages/Index";
 import Fleet from "./pages/Fleet";
 import Trips from "./pages/Trips";
@@ -38,6 +39,7 @@ const ProtectedRoutes = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <TrackingPrefsProvider>
     <UserRoleProvider>
       <TraccarAuthProvider>
         <TooltipProvider>
@@ -66,6 +68,7 @@ const App = () => (
         </TooltipProvider>
       </TraccarAuthProvider>
     </UserRoleProvider>
+    </TrackingPrefsProvider>
   </QueryClientProvider>
 );
 

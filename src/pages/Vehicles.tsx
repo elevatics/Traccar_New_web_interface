@@ -37,11 +37,13 @@ import {
   Calendar,
   User,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import AddVehicleDialog from '@/components/AddVehicleDialog';
+import EditVehicleDialog from '@/components/EditVehicleDialog';
 import useFleetData from '@/hooks/useFleetData';
 import { deleteDevice } from '@/services/deviceService';
 
@@ -58,6 +60,8 @@ export default function Vehicles() {
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
   const [deleteSubmittingId, setDeleteSubmittingId] = useState<string | null>(null);
+  const [editVehicleOpen, setEditVehicleOpen] = useState(false);
+  const [editVehicleTarget, setEditVehicleTarget] = useState<Vehicle | null>(null);
   const { toast } = useToast();
 
   const vehiclesData = useMemo<Vehicle[]>(
@@ -109,6 +113,7 @@ export default function Vehicles() {
           distance: Number(item.distance) || 0,
           totalDistance: Number(item.totalDistance) || 0,
           motion: Boolean(item.motion),
+          imageUrl: item.imageUrl || undefined,
         } as Vehicle;
       }),
     [fleetData]
@@ -153,6 +158,11 @@ export default function Vehicles() {
   const handleViewMaintenance = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setMaintenanceDialogOpen(true);
+  };
+
+  const handleEditVehicle = (vehicle: Vehicle) => {
+    setEditVehicleTarget(vehicle);
+    setEditVehicleOpen(true);
   };
 
   const handleTrackLocation = (vehicle: Vehicle) => {
@@ -241,18 +251,29 @@ export default function Vehicles() {
         return (
           <Card key={vehicle.id} className="hover:shadow-xl hover:-translate-y-0.5 transition-all border-border/70">
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-primary/10 rounded-xl">
-                    <Car className="h-6 w-6 text-primary" />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    {vehicle.imageUrl ? (
+                      <img
+                        src={vehicle.imageUrl}
+                        alt={vehicle.name}
+                        className="h-12 w-16 object-cover rounded-xl border border-border shadow-sm"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="p-2.5 bg-primary/10 rounded-xl">
+                        <Car className="h-6 w-6 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <CardTitle className="text-base">{vehicle.name}</CardTitle>
+                      <CardDescription className="text-xs">{vehicle.plateNumber}</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-base">{vehicle.name}</CardTitle>
-                    <CardDescription className="text-xs">{vehicle.plateNumber}</CardDescription>
-                  </div>
+                  <StatusBadge status={vehicle.status} />
                 </div>
-                <StatusBadge status={vehicle.status} />
-              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -286,6 +307,14 @@ export default function Vehicles() {
                   >
                     <Eye className="h-3 w-3 mr-1" />
                     Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditVehicle(vehicle)}
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit
                   </Button>
                   <Button 
                     size="sm" 
@@ -845,6 +874,14 @@ export default function Vehicles() {
         open={addVehicleOpen}
         onOpenChange={setAddVehicleOpen}
         onVehicleAdded={refresh}
+      />
+
+      <EditVehicleDialog
+        open={editVehicleOpen}
+        onOpenChange={setEditVehicleOpen}
+        deviceId={editVehicleTarget ? (editVehicleTarget.deviceId || Number(editVehicleTarget.id)) : 0}
+        deviceName={editVehicleTarget?.name}
+        onVehicleUpdated={refresh}
       />
     </div>
   );

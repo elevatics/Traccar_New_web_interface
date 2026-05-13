@@ -40,4 +40,5 @@ export interface Vehicle {
   distance: number;
   totalDistance: number;
   motion: boolean;
+  imageUrl?: string;
 }

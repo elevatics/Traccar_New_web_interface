@@ -60,72 +60,53 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel — gradient branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary/85 to-primary/60 flex-col items-center justify-center p-12 relative overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute top-[-80px] left-[-80px] w-64 h-64 rounded-full bg-white/5" />
-        <div className="absolute bottom-[-60px] right-[-60px] w-80 h-80 rounded-full bg-white/5" />
-        <div className="absolute top-1/3 right-[-30px] w-40 h-40 rounded-full bg-white/5" />
+    /* ── Full-screen background ── */
+    <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden">
 
-        <div className="relative z-10 text-white max-w-md text-center">
-          {/* Logo / brand icon */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center shadow-2xl">
-              <MapPin className="h-10 w-10 text-white" />
-            </div>
+      {/* Background gradient layer */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/80 to-slate-800" />
+
+      {/* Decorative blurred circles — depth effect */}
+      <div className="absolute top-[-10%] left-[-5%] w-[480px] h-[480px] rounded-full bg-primary/30 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[560px] h-[560px] rounded-full bg-slate-700/40 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+
+      {/* Subtle grid overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
+
+      {/* ── Centered card ── */}
+      <div className="relative z-10 w-full max-w-sm">
+
+        {/* Brand header */}
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <div className="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center shadow-xl">
+            <MapPin className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-4xl font-bold mb-3 tracking-tight">FleetTrack Pro</h1>
-          <p className="text-white/70 text-lg mb-10">Real-time vehicle tracking & fleet intelligence</p>
-
-          {/* Feature pills */}
-          <div className="space-y-3 text-left">
-            {[
-              "Live GPS tracking for every vehicle",
-              "AI-powered fleet insights & reports",
-              "Instant alerts and geofencing",
-            ].map((feat) => (
-              <div key={feat} className="flex items-center gap-3 bg-white/10 rounded-xl px-4 py-3 backdrop-blur-sm border border-white/10">
-                <div className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
-                <span className="text-sm text-white/90">{feat}</span>
-              </div>
-            ))}
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white tracking-tight">FleetTrack Pro</h1>
+            <p className="text-white/50 text-xs mt-0.5">GPS Fleet Management</p>
           </div>
         </div>
-      </div>
 
-      {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-background">
-        <div className="w-full max-w-md space-y-8">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 justify-center mb-2">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-              <MapPin className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">FleetTrack Pro</span>
-          </div>
-
-          {/* Heading */}
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              {mode === "signup" ? "Create your account" : "Welcome back"}
-            </h2>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {mode === "signup"
-                ? "Sign up to start managing your fleet"
-                : "Sign in to your fleet dashboard"}
-            </p>
-          </div>
+        {/* Card */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-7 space-y-5">
 
           {/* Mode toggle */}
-          <div className="flex rounded-xl border border-border bg-muted/40 p-1 gap-1">
+          <div className="flex rounded-xl border border-border bg-muted/50 p-1 gap-1">
             <button
               type="button"
               onClick={() => { setMode("signin"); setError(null); setFieldErrors({}); }}
               className={cn(
-                "flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200",
+                "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200",
                 mode === "signin"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -135,9 +116,9 @@ export default function Login() {
               type="button"
               onClick={() => { setMode("signup"); setError(null); setFieldErrors({}); }}
               className={cn(
-                "flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200",
+                "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200",
                 mode === "signup"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -145,11 +126,23 @@ export default function Login() {
             </button>
           </div>
 
+          {/* Heading */}
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">
+              {mode === "signup" ? "Create your account" : "Welcome back"}
+            </h2>
+            <p className="text-muted-foreground text-xs mt-0.5">
+              {mode === "signup"
+                ? "Sign up to start managing your fleet"
+                : "Sign in to your fleet dashboard"}
+            </p>
+          </div>
+
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
             {mode === "signup" && (
               <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+                <Label htmlFor="name" className="text-xs font-medium">Full Name</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -158,16 +151,20 @@ export default function Login() {
                     value={name}
                     onChange={(e) => { setName(e.target.value); setFieldErrors(p => ({ ...p, name: undefined })); }}
                     placeholder="John Smith"
-                    className={cn("pl-10", fieldErrors.name && "border-destructive focus-visible:ring-destructive")}
+                    className={cn("pl-9 h-10 text-sm", fieldErrors.name && "border-destructive focus-visible:ring-destructive")}
                     autoComplete="name"
                   />
                 </div>
-                {fieldErrors.name && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{fieldErrors.name}</p>}
+                {fieldErrors.name && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />{fieldErrors.name}
+                  </p>
+                )}
               </div>
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium">Username or Email</Label>
+              <Label htmlFor="email" className="text-xs font-medium">Username or Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -176,15 +173,19 @@ export default function Login() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: undefined })); }}
                   placeholder="admin or name@example.com"
-                  className={cn("pl-10", fieldErrors.email && "border-destructive focus-visible:ring-destructive")}
+                  className={cn("pl-9 h-10 text-sm", fieldErrors.email && "border-destructive focus-visible:ring-destructive")}
                   autoComplete="username"
                 />
               </div>
-              {fieldErrors.email && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{fieldErrors.email}</p>}
+              {fieldErrors.email && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />{fieldErrors.email}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-xs font-medium">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -193,7 +194,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: undefined })); }}
                   placeholder="••••••••"
-                  className={cn("pl-10 pr-10", fieldErrors.password && "border-destructive focus-visible:ring-destructive")}
+                  className={cn("pl-9 pr-9 h-10 text-sm", fieldErrors.password && "border-destructive focus-visible:ring-destructive")}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 />
                 <button
@@ -205,7 +206,11 @@ export default function Login() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {fieldErrors.password && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{fieldErrors.password}</p>}
+              {fieldErrors.password && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />{fieldErrors.password}
+                </p>
+              )}
             </div>
 
             {mode === "signin" && (
@@ -215,13 +220,13 @@ export default function Login() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-border accent-primary"
+                    className="h-3.5 w-3.5 rounded border-border accent-primary"
                   />
-                  <span className="text-sm text-muted-foreground">Remember me</span>
+                  <span className="text-xs text-muted-foreground">Remember me</span>
                 </label>
                 <button
                   type="button"
-                  className="text-sm text-primary hover:underline font-medium"
+                  className="text-xs text-primary hover:underline font-medium"
                   onClick={() => {/* forgot password placeholder */}}
                 >
                   Forgot password?
@@ -230,15 +235,15 @@ export default function Login() {
             )}
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3">
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5">
                 <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-destructive">{error}</p>
+                <p className="text-xs text-destructive">{error}</p>
               </div>
             )}
 
             <Button
               type="submit"
-              className="w-full h-11 font-semibold text-sm rounded-xl"
+              className="w-full h-10 font-semibold text-sm rounded-xl mt-1"
               disabled={submitting}
             >
               {submitting ? (
@@ -247,16 +252,16 @@ export default function Login() {
                   {mode === "signup" ? "Creating account…" : "Signing in…"}
                 </>
               ) : (
-                mode === "signup" ? "Create account" : "Sign in to dashboard"
+                mode === "signup" ? "Create account" : "Sign in"
               )}
             </Button>
           </form>
 
           {/* Footer */}
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-[11px] text-muted-foreground pt-1">
             By continuing, you agree to our{" "}
-            <span className="text-primary hover:underline cursor-pointer">Terms of Service</span>{" "}
-            and{" "}
+            <span className="text-primary hover:underline cursor-pointer">Terms</span>{" "}
+            &amp;{" "}
             <span className="text-primary hover:underline cursor-pointer">Privacy Policy</span>
           </p>
         </div>

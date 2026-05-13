@@ -116,6 +116,8 @@ export const mapDeviceData = (devices = [], positions = []) => {
           positionAttributes.totalDistance ?? deviceAttributes.totalDistance
         ),
         motion,
+        // Images are stored in localStorage to avoid overflowing Traccar's attributes column
+        imageUrl: (typeof window !== 'undefined' && localStorage.getItem(`vehicle_image_${device.id}`)) || undefined,
       };
     });
 };

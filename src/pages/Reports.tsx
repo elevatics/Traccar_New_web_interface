@@ -495,8 +495,7 @@ function RouteReportSection({
             )}
           </CardTitle>
           <CardDescription>
-            Fetches position data from <code className="text-xs bg-muted px-1 rounded">/api/reports/route</code>
-          </CardDescription>
+            Fetches position data </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3 items-end">

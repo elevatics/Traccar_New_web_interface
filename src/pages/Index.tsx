@@ -61,6 +61,7 @@ const Index = () => {
           distance: Number(item.distance) || 0,
           totalDistance: Number(item.totalDistance) || 0,
           motion: Boolean(item.motion),
+          imageUrl: item.imageUrl || undefined,
         } as Vehicle;
       }),
     [fleetData]

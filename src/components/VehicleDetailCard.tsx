@@ -21,11 +21,13 @@ import {
   Server,
   Cpu,
   BarChart3,
+  Car,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useTrackingPrefs, fmtSpeed, fmtDistance, fmtFuel } from '@/contexts/TrackingPrefsContext';
 
 interface VehicleDetailCardProps {
   vehicle: Vehicle;
@@ -37,6 +39,7 @@ interface VehicleDetailCardProps {
 
 const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }: VehicleDetailCardProps) => {
   const navigate = useNavigate();
+  const { prefs } = useTrackingPrefs();
   const [systemExpanded, setSystemExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -87,7 +90,41 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
   /** Prefer primary fuel reading; fall back to fuelLevel when fuel is unset/zero (stash behavior). */
   const latestFuelPercent = vehicle.fuel > 0 ? vehicle.fuel : vehicle.fuelLevel;
   const fuelLow = latestFuelPercent < 20;
-  const speedKmh = Math.round(vehicle.speed * 1.852);
+
+  // Speed — respects prefs unit, suppresses GPS drift when stationary
+  const displaySpeed = fmtSpeed(
+    vehicle.speed,
+    prefs.speedUnit,
+    vehicle.motion === false || vehicle.status === 'offline'
+  );
+
+  // Distance helpers respecting prefs unit
+  const displayOdometer  = fmtDistance(vehicle.odometer,      prefs.distanceUnit);
+  const displayTrip      = fmtDistance(vehicle.tripOdometer,  prefs.distanceUnit);
+  const displayTotal     = fmtDistance(vehicle.totalDistance, prefs.distanceUnit);
+
+  /** Average Fuel Consumption — 20-gallon tank model.
+   *  fuelUsed = percentage consumed × 20 gal
+   *  avgMpg   = total miles driven ÷ gallons used          */
+  const TANK_GALLONS = 20;
+  const fuelUsedGallons = ((100 - latestFuelPercent) / 100) * TANK_GALLONS;
+  const totalMiles = vehicle.totalDistance / 1609.34;
+  const tripMiles  = vehicle.tripOdometer  / 1609.34;
+  const distanceMiles = totalMiles > 0 ? totalMiles : tripMiles;
+  const avgMpg =
+    fuelUsedGallons > 0.5 && distanceMiles > 0.1
+      ? distanceMiles / fuelUsedGallons
+      : null;
+  const avgFuelLabel = avgMpg !== null ? `${avgMpg.toFixed(1)} mpg` : 'N/A';
+
+  // Raw Traccar fuelConsumption field (litres consumed per session / total)
+  const traccarFuelDisplay =
+    vehicle.fuelConsumption > 0
+      ? fmtFuel(vehicle.fuelConsumption, prefs.fuelUnit)
+      : null;
+
+  // Vehicle image stored in Traccar device attributes.imageUrl
+  const vehicleImageUrl = vehicle.imageUrl;
 
   const getDirectionLabel = (course: number) => {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -98,36 +135,90 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
     <div
       ref={cardRef}
       className={cn(
-        "w-full bg-card border border-border rounded-2xl shadow-2xl flex flex-col max-h-[82vh] overflow-hidden",
+        "w-full bg-card border border-border rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden",
         isDragging && "cursor-grabbing select-none"
       )}
     >
       {/* ── Header ── */}
-      <div
-        className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 border-b border-border cursor-grab active:cursor-grabbing flex-shrink-0"
-        onMouseDown={handleMouseDown}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <StatusBadge status={vehicle.status} />
-            <h3 className="font-semibold text-base truncate">{vehicle.name}</h3>
+      {vehicleImageUrl ? (
+        /* Hero image banner with name / close overlaid */
+        <div
+          className="relative flex-shrink-0 cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+        >
+          <img
+            src={vehicleImageUrl}
+            alt={vehicle.name}
+            className="w-full h-40 object-cover rounded-t-2xl"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
+          {/* Dark gradient overlay so text is readable */}
+          <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+          {/* Close button — top-right */}
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="absolute top-2 right-2 h-8 w-8 bg-black/40 hover:bg-black/60 text-white border border-white/20 rounded-lg backdrop-blur-sm"
+              title="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Name / plate / status pinned to bottom of image */}
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-6">
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <StatusBadge status={vehicle.status} />
+                </div>
+                <h3 className="font-bold text-base text-white leading-tight truncate drop-shadow">
+                  {vehicle.name}
+                </h3>
+                {vehicle.plateNumber && vehicle.plateNumber !== '-' && (
+                  <p className="text-xs text-white/70 mt-0.5">{vehicle.plateNumber}</p>
+                )}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">{vehicle.plateNumber}</p>
         </div>
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-7 w-7 flex-shrink-0 hover:bg-destructive/10 rounded-lg"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
+      ) : (
+        /* Standard compact header when no image */
+        <div
+          className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 border-b border-border cursor-grab active:cursor-grabbing flex-shrink-0"
+          onMouseDown={handleMouseDown}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 border border-border">
+              <Car className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <StatusBadge status={vehicle.status} />
+                <h3 className="font-semibold text-base truncate">{vehicle.name}</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">{vehicle.plateNumber}</p>
+            </div>
+          </div>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8 flex-shrink-0 hover:bg-destructive/10 rounded-lg border border-transparent hover:border-destructive/20"
+              title="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* ── Scrollable body ── */}
-      <div className="overflow-y-auto flex-1 space-y-3 px-4 py-3">
+      <div className="overflow-y-auto flex-1 min-h-0 space-y-3 px-4 py-3">
 
         {/* ── SECTION 1: Live Status ── */}
         <SectionLabel icon={<Activity className="h-3.5 w-3.5" />} label="Live Status" />
@@ -135,9 +226,15 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
           {/* Speed */}
           <StatChip
             label="Speed"
-            value={`${speedKmh} km/h`}
+            value={displaySpeed}
             icon={<Gauge className="h-4 w-4" />}
-            color={speedKmh > 80 ? 'orange' : speedKmh > 0 ? 'green' : 'muted'}
+            color={
+              (vehicle.motion === false || vehicle.status === 'offline' || vehicle.speed < 0.5)
+                ? 'muted'
+                : vehicle.speed * 1.852 > 80
+                  ? 'orange'
+                  : 'green'
+            }
             large
           />
           {/* Ignition */}
@@ -204,11 +301,43 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <MetricItem label="Odometer" value={`${(vehicle.odometer / 1000).toFixed(0)} km`} icon={<Route className="h-3.5 w-3.5" />} />
-            <MetricItem label="Trip" value={`${(vehicle.tripOdometer / 1000).toFixed(1)} km`} icon={<Navigation className="h-3.5 w-3.5" />} />
-            <MetricItem label="Total" value={`${Math.round(vehicle.totalDistance)} km`} icon={<Activity className="h-3.5 w-3.5" />} />
-          </div>
+          {prefs.showOdometer && (
+            <div className="grid grid-cols-3 gap-2">
+              <MetricItem label="Odometer" value={displayOdometer} icon={<Route className="h-3.5 w-3.5" />} />
+              <MetricItem label="Trip" value={displayTrip} icon={<Navigation className="h-3.5 w-3.5" />} />
+              <MetricItem label="Total" value={displayTotal} icon={<Activity className="h-3.5 w-3.5" />} />
+            </div>
+          )}
+
+          {/* Fuel consumption block — shows both values when available */}
+          {prefs.showFuelConsumption && (
+            <div className="rounded-xl bg-muted/50 border border-border/60 p-3 space-y-2">
+              {/* Avg Fuel Consumption — 20-gal tank model */}
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  <span>Avg Consumption</span>
+                </div>
+                <span className="font-semibold text-foreground">{avgFuelLabel}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {TANK_GALLONS}-gal tank model · {latestFuelPercent.toFixed(0)}% fuel remaining
+              </p>
+              {/* Traccar reported fuel consumption (raw field) */}
+              {traccarFuelDisplay && (
+                <>
+                  <div className="border-t border-border/40 pt-2 flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Fuel className="h-3.5 w-3.5" />
+                      <span>Traccar Report</span>
+                    </div>
+                    <span className="font-semibold text-foreground">{traccarFuelDisplay}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">GPS-reported total fuel used</p>
+                </>
+              )}
+            </div>
+          )}
 
           {(vehicle.coolantTemp || vehicle.intakeTemp) && (
             <div className="grid grid-cols-2 gap-2">
@@ -257,7 +386,9 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
               valueClass={vehicle.outdated ? 'text-orange-500' : 'text-green-600 dark:text-green-400'}
             />
             <SysRow label="Fuel %" value={`${latestFuelPercent}%`} icon={<Fuel className="h-3 w-3" />} />
-            <SysRow label="Fuel consumption" value={vehicle.fuelConsumption.toLocaleString()} />
+            <SysRow label="Avg Consumption" value={avgFuelLabel} icon={<BarChart3 className="h-3 w-3" />} />
+            {traccarFuelDisplay && <SysRow label="Traccar Fuel" value={traccarFuelDisplay} icon={<Fuel className="h-3 w-3" />} />}
+            {prefs.showAltitude && <SysRow label="Altitude" value={`${vehicle.altitude.toFixed(0)} m`} />}
             {vehicle.network && <SysRow label="Network" value={vehicle.network} />}
             {vehicle.rpm !== undefined && <SysRow label="RPM" value={String(vehicle.rpm)} />}
           </div>

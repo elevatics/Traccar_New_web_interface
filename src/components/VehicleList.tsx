@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import StatusBadge from './StatusBadge';
 import { cn } from '@/lib/utils';
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, Pencil } from 'lucide-react';
 import AddVehicleDialog from './AddVehicleDialog';
+import EditVehicleDialog from './EditVehicleDialog';
 import useFleetData from '@/hooks/useFleetData';
 import { formatDistanceToNow } from 'date-fns';
 import { deleteDevice } from '@/services/deviceService';
@@ -50,6 +51,7 @@ type FleetListItem = {
   motion?: boolean;
   lat: number;
   lng: number;
+  imageUrl?: string;
 };
 const toVehicleStatus = (status?: string): VehicleStatus => {
   if (status === 'online' || status === 'idle' || status === 'offline') {
@@ -91,6 +93,8 @@ const VehicleList = ({
 }: VehicleListProps) => {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ deviceId: number; name: string } | null>(null);
   const { fleetData, loading, error, refresh } = useFleetData();
 
   const handleDeleteDevice = async (e: MouseEvent, fleetVehicle: FleetListItem) => {
@@ -279,7 +283,28 @@ const VehicleList = ({
                   onClick={() => onSelectVehicle(getVehicleForSelection(vehicle))}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <StatusBadge status={vehicle.status as VehicleStatus} showLabel={false} size="sm" />
+                    {vehicle.imageUrl ? (
+                      /* Image thumbnail with status dot overlay */
+                      <div className="relative flex-shrink-0">
+                        <img
+                          src={vehicle.imageUrl}
+                          alt={vehicle.name}
+                          className="h-12 w-16 object-cover rounded-xl shadow-sm"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                        {/* Status dot pinned to bottom-right of image */}
+                        <span
+                          className={cn(
+                            'absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-card shadow-sm',
+                            vehicle.status === 'online' ? 'bg-green-500'
+                              : vehicle.status === 'idle' ? 'bg-yellow-400'
+                              : 'bg-red-500'
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <StatusBadge status={vehicle.status as VehicleStatus} showLabel={false} size="sm" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-card-foreground truncate">{vehicle.name}</p>
                       <p className="text-xs text-muted-foreground">{vehicle.plateNumber || '-'}</p>
@@ -299,7 +324,13 @@ const VehicleList = ({
                       Driver: <span className="text-card-foreground font-medium">{vehicle.driver || '-'}</span>
                     </p>
                     <p className="text-muted-foreground">
-                      Speed: <span className="text-card-foreground font-medium">{vehicle.speed} mph</span>
+                      Speed:{' '}
+                      <span className="text-card-foreground font-medium">
+                        {/* Suppress GPS drift: only show non-zero speed when device reports motion */}
+                        {vehicle.motion === false || vehicle.status === 'offline' || vehicle.speed < 0.5
+                          ? '0 km/h'
+                          : `${Math.round(vehicle.speed * 1.852)} km/h`}
+                      </span>
                     </p>
                     <p className="text-muted-foreground">
                       Updated: <span className="text-card-foreground font-medium">{getUpdatedText(vehicle)}</span>
@@ -313,6 +344,24 @@ const VehicleList = ({
                       type="button"
                     >
                       View on Map
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      type="button"
+                      title="Edit vehicle"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditTarget({
+                          deviceId: Number(vehicle.deviceId ?? vehicle.id),
+                          name: vehicle.name,
+                        });
+                        setEditOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
@@ -336,6 +385,13 @@ const VehicleList = ({
         open={addVehicleOpen}
         onOpenChange={setAddVehicleOpen}
         onVehicleAdded={refresh}
+      />
+      <EditVehicleDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        deviceId={editTarget?.deviceId ?? 0}
+        deviceName={editTarget?.name}
+        onVehicleUpdated={refresh}
       />
     </div>
   );

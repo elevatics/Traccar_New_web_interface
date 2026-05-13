@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
 import useFleetData from '@/hooks/useFleetData';
+import { useTrackingPrefs } from '@/contexts/TrackingPrefsContext';
 
 interface FleetMapProps {
   vehicles: Vehicle[];
@@ -15,6 +16,8 @@ interface FleetMapProps {
   onSelectVehicle: (vehicle: Vehicle) => void;
   onClearSelection: () => void;
   apiToken: string;
+  /** Optional live trip route to draw as a polyline on the map */
+  liveRoute?: { lat: number; lng: number }[];
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -209,7 +212,10 @@ const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
   };
 };
 
-const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken }: FleetMapProps) => {
+const LIVE_ROUTE_SOURCE = 'live-trip-route-src';
+const LIVE_ROUTE_LAYER  = 'live-trip-route-line';
+
+const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken, liveRoute }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
@@ -230,6 +236,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
   const [aiChatDragOffset, setAiChatDragOffset] = useState({ x: 0, y: 0 });
   const aiChatWrapperRef = useRef<HTMLDivElement>(null);
   const { fleetData } = useFleetData();
+  const { prefs } = useTrackingPrefs();
   const vehiclesById = useMemo(
     () =>
       new Map(vehicles.map((vehicle) => [String(vehicle.id), vehicle])),
@@ -315,7 +322,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
       center: bootstrapView?.center ?? [0, 20],
-      zoom: bootstrapView?.zoom ?? 2,
+      zoom: bootstrapView?.zoom ?? prefs.defaultZoom,
       pitch: 0,
     });
 
@@ -506,15 +513,25 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     });
   }, [fleetData, onSelectVehicle, vehiclesById]);
 
+  // Re-apply zoom when defaultZoom preference changes while map is already loaded
   useEffect(() => {
-    if (!map.current || !selectedVehicle) return;
+    if (!map.current || !map.current.loaded()) return;
+    // Only adjust zoom if we're not currently zoomed in on a specific vehicle
+    if (!selectedVehicle) {
+      map.current.easeTo({ zoom: prefs.defaultZoom, duration: 600 });
+    }
+  }, [prefs.defaultZoom, selectedVehicle]);
+
+  // Fly to selected vehicle — only when autoCenter is enabled in prefs
+  useEffect(() => {
+    if (!map.current || !selectedVehicle || !prefs.autoCenter) return;
 
     map.current.flyTo({
       center: [selectedVehicle.location.lng, selectedVehicle.location.lat],
-      zoom: 15,
+      zoom: Math.max(prefs.defaultZoom, 13), // at least street-level when selecting
       duration: 1500,
     });
-  }, [selectedVehicle]);
+  }, [selectedVehicle, prefs.autoCenter, prefs.defaultZoom]);
 
   const getValidFleetCoords = (): LatLng[] =>
     filterValidCoords(
@@ -538,7 +555,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       const { lng, lat } = coords[0];
       map.current.easeTo({
         center: [lng, lat],
-        zoom: 13,
+        zoom: prefs.defaultZoom,
         duration,
       });
       return;
@@ -547,7 +564,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     coords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
     map.current.fitBounds(bounds, {
       padding: { top: 80, bottom: 80, left: 80, right: 80 },
-      maxZoom: 14,
+      maxZoom: prefs.defaultZoom,
       duration,
     });
   };
@@ -642,6 +659,68 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     }
   }, [mapStyle]);
 
+  // Draw / update live trip route polyline on map
+  useEffect(() => {
+    if (!map.current) return;
+
+    const applyRoute = () => {
+      if (!map.current) return;
+      const hasSource = !!map.current.getSource(LIVE_ROUTE_SOURCE);
+
+      if (!liveRoute || liveRoute.length < 2) {
+        if (map.current.getLayer(LIVE_ROUTE_LAYER)) map.current.removeLayer(LIVE_ROUTE_LAYER);
+        if (hasSource) map.current.removeSource(LIVE_ROUTE_SOURCE);
+        return;
+      }
+
+      const geojsonData = {
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: liveRoute.map((p) => [p.lng, p.lat]),
+        },
+        properties: {},
+      };
+
+      if (hasSource) {
+        (map.current.getSource(LIVE_ROUTE_SOURCE) as mapboxgl.GeoJSONSource).setData(geojsonData);
+      } else {
+        map.current.addSource(LIVE_ROUTE_SOURCE, { type: 'geojson', data: geojsonData });
+        map.current.addLayer({
+          id: LIVE_ROUTE_LAYER,
+          type: 'line',
+          source: LIVE_ROUTE_SOURCE,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#10b981',
+            'line-width': 4,
+            'line-opacity': 0.85,
+            'line-dasharray': [1, 0],
+          },
+        });
+        // Add glow effect
+        if (!map.current.getLayer(LIVE_ROUTE_LAYER + '-glow')) {
+          map.current.addLayer(
+            {
+              id: LIVE_ROUTE_LAYER + '-glow',
+              type: 'line',
+              source: LIVE_ROUTE_SOURCE,
+              layout: { 'line-join': 'round', 'line-cap': 'round' },
+              paint: { 'line-color': '#10b981', 'line-width': 10, 'line-opacity': 0.2 },
+            },
+            LIVE_ROUTE_LAYER
+          );
+        }
+      }
+    };
+
+    if (map.current.loaded()) {
+      applyRoute();
+    } else {
+      map.current.once('load', applyRoute);
+    }
+  }, [liveRoute]);
+
   return (
     <div className="relative h-full w-full fleet-map-root">
       <div ref={mapContainer} className="absolute inset-0" />
@@ -674,7 +753,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           <Layers className="h-4 w-4 mr-2" />
           Traffic
         </Button>
-        {/* Re-center button — always fits back to all device locations */}
+        {/* Re-center button — always fits back to all device locations at current defaultZoom */}
         <Button
           variant="secondary"
           size="sm"
@@ -683,7 +762,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
             fitToDevices(800);
           }}
           className="shadow-lg"
-          title="Fit map to all device locations"
+          title={`Fit map to all devices (zoom ${prefs.defaultZoom})`}
         >
           <Locate className="h-4 w-4 mr-2" />
           Re-center
@@ -691,26 +770,32 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       </div>
 
       {selectedVehicle && (
-        <div 
-          className="absolute z-10 w-96 max-w-[90vw]"
-          style={{
-            left: cardPosition ? `${cardPosition.x}px` : '50%',
-            top: cardPosition ? `${cardPosition.y}px` : 'auto',
-            bottom: cardPosition ? 'auto' : '2rem',
-            transform: cardPosition ? 'none' : 'translateX(-50%)',
-          }}
-        >
-          <VehicleDetailCard 
-            vehicle={selectedVehicle} 
-            onClose={onClearSelection}
-            position={cardPosition}
-            onPositionChange={setCardPosition}
-            onOpenAIChat={() => {
-              setAiChatVehicle(selectedVehicle);
-              setShowAIChat(true);
-            }}
+        <>
+          {/* Click-outside backdrop to close — only visible on mobile-ish sizes */}
+          <div
+            className="absolute inset-0 z-[9] sm:hidden"
+            onClick={onClearSelection}
           />
-        </div>
+          <div
+            className="absolute z-10 w-80 max-w-[92vw]"
+            style={
+              cardPosition
+                ? { left: `${cardPosition.x}px`, top: `${cardPosition.y}px` }
+                : { right: '1rem', top: '4.5rem' }
+            }
+          >
+            <VehicleDetailCard
+              vehicle={selectedVehicle}
+              onClose={onClearSelection}
+              position={cardPosition}
+              onPositionChange={setCardPosition}
+              onOpenAIChat={() => {
+                setAiChatVehicle(selectedVehicle);
+                setShowAIChat(true);
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* AI Chat Window */}

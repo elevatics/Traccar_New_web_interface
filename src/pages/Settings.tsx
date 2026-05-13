@@ -7,21 +7,27 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { User, Shield, Bell, Palette, Building2, Plug, Users, FileCheck } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { User, Shield, Bell, Palette, Building2, Plug, Users, FileCheck, MapPin, Gauge, Fuel, Loader2 } from "lucide-react";
 import { useUserRole, UserRole } from "@/contexts/UserRoleContext";
-import { toast } from "sonner";
+import { useTrackingPrefs, TrackingPrefs } from "@/contexts/TrackingPrefsContext";
 
 export default function Settings() {
   const { role, setRole } = useUserRole();
+  const { prefs: savedPrefs, savePrefs, serverSaving } = useTrackingPrefs();
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
     sms: false
   });
+  // Local draft — only committed when user clicks Save
+  const [trackingPrefs, setTrackingPrefs] = useState<TrackingPrefs>(savedPrefs);
+
+  const setTP = (key: keyof TrackingPrefs, value: unknown) =>
+    setTrackingPrefs((p) => ({ ...p, [key]: value }));
 
   const handleRoleChange = (newRole: string) => {
     setRole(newRole as UserRole);
-    toast.success(`Role changed to ${newRole.replace('_', ' ')}`);
   };
 
   return (
@@ -32,15 +38,16 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid grid-cols-4 lg:grid-cols-8 w-full">
-          <TabsTrigger value="profile"><User className="w-4 h-4 mr-2" />Profile</TabsTrigger>
-          <TabsTrigger value="security"><Shield className="w-4 h-4 mr-2" />Security</TabsTrigger>
-          <TabsTrigger value="notifications"><Bell className="w-4 h-4 mr-2" />Notifications</TabsTrigger>
-          <TabsTrigger value="preferences"><Palette className="w-4 h-4 mr-2" />Preferences</TabsTrigger>
-          <TabsTrigger value="company"><Building2 className="w-4 h-4 mr-2" />Company</TabsTrigger>
-          <TabsTrigger value="integrations"><Plug className="w-4 h-4 mr-2" />Integrations</TabsTrigger>
-          <TabsTrigger value="team"><Users className="w-4 h-4 mr-2" />Team</TabsTrigger>
-          <TabsTrigger value="compliance"><FileCheck className="w-4 h-4 mr-2" />Compliance</TabsTrigger>
+        <TabsList className="flex flex-wrap gap-1 h-auto w-full justify-start">
+          <TabsTrigger value="profile" className="flex items-center gap-1.5"><User className="w-4 h-4" /><span className="hidden sm:inline">Profile</span></TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-1.5"><Shield className="w-4 h-4" /><span className="hidden sm:inline">Security</span></TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-1.5"><Bell className="w-4 h-4" /><span className="hidden sm:inline">Notifications</span></TabsTrigger>
+          <TabsTrigger value="tracking" className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /><span className="hidden sm:inline">Tracking</span></TabsTrigger>
+          <TabsTrigger value="preferences" className="flex items-center gap-1.5"><Palette className="w-4 h-4" /><span className="hidden sm:inline">Preferences</span></TabsTrigger>
+          <TabsTrigger value="company" className="flex items-center gap-1.5"><Building2 className="w-4 h-4" /><span className="hidden sm:inline">Company</span></TabsTrigger>
+          <TabsTrigger value="integrations" className="flex items-center gap-1.5"><Plug className="w-4 h-4" /><span className="hidden sm:inline">Integrations</span></TabsTrigger>
+          <TabsTrigger value="team" className="flex items-center gap-1.5"><Users className="w-4 h-4" /><span className="hidden sm:inline">Team</span></TabsTrigger>
+          <TabsTrigger value="compliance" className="flex items-center gap-1.5"><FileCheck className="w-4 h-4" /><span className="hidden sm:inline">Compliance</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
@@ -166,6 +173,212 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Tracking Preferences ── */}
+        <TabsContent value="tracking" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gauge className="h-5 w-5" />
+                Units &amp; Measurement
+              </CardTitle>
+              <CardDescription>
+                Configure how distances, speeds, and fuel are displayed across the app.
+                These preferences are stored locally and applied on every page.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Distance */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Distance Unit</Label>
+                  <Select value={trackingPrefs.distanceUnit} onValueChange={(v) => setTP("distanceUnit", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="km">Kilometers (km)</SelectItem>
+                      <SelectItem value="mi">Miles (mi)</SelectItem>
+                      <SelectItem value="nm">Nautical Miles (nm)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Speed */}
+                <div className="space-y-2">
+                  <Label>Speed Unit</Label>
+                  <Select value={trackingPrefs.speedUnit} onValueChange={(v) => setTP("speedUnit", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="kmh">km/h</SelectItem>
+                      <SelectItem value="mph">mph</SelectItem>
+                      <SelectItem value="kn">Knots</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Fuel */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Fuel className="h-4 w-4" />
+                    Fuel Unit
+                  </Label>
+                  <Select value={trackingPrefs.fuelUnit} onValueChange={(v) => setTP("fuelUnit", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="liters">Liters (L)</SelectItem>
+                      <SelectItem value="us_gallons">US Gallons (gal)</SelectItem>
+                      <SelectItem value="imp_gallons">Imperial Gallons</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Volume */}
+                <div className="space-y-2">
+                  <Label>Volume Unit</Label>
+                  <Select value={trackingPrefs.volumeUnit} onValueChange={(v) => setTP("volumeUnit", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="liters">Liters (L)</SelectItem>
+                      <SelectItem value="us_gallons">US Gallons</SelectItem>
+                      <SelectItem value="imp_gallons">Imperial Gallons</SelectItem>
+                      <SelectItem value="cubic_meters">Cubic Meters (m³)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Coordinate Format */}
+                <div className="space-y-2">
+                  <Label>Coordinate Format</Label>
+                  <Select value={trackingPrefs.coordinateFormat} onValueChange={(v) => setTP("coordinateFormat", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="decimal">Decimal Degrees (DD)</SelectItem>
+                      <SelectItem value="dms">Degrees Minutes Seconds (DMS)</SelectItem>
+                      <SelectItem value="ddm">Degrees Decimal Minutes (DDM)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Timezone */}
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <Select value={trackingPrefs.timezone} onValueChange={(v) => setTP("timezone", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="UTC">UTC</SelectItem>
+                      <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                      <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                      <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                      <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                      <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                      <SelectItem value="Europe/Paris">Central Europe (CET)</SelectItem>
+                      <SelectItem value="Asia/Dubai">Gulf Standard Time (GST)</SelectItem>
+                      <SelectItem value="Asia/Kolkata">India (IST)</SelectItem>
+                      <SelectItem value="Asia/Singapore">Singapore (SGT)</SelectItem>
+                      <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Map &amp; Zoom Preferences
+              </CardTitle>
+              <CardDescription>Control default zoom and map behavior</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Default Map Zoom Level</Label>
+                  <span className="text-sm font-semibold text-primary">{trackingPrefs.defaultZoom}×</span>
+                </div>
+                <Slider
+                  min={3}
+                  max={20}
+                  step={1}
+                  value={[trackingPrefs.defaultZoom]}
+                  onValueChange={([v]) => setTP("defaultZoom", v)}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>World (3)</span>
+                  <span>City (13)</span>
+                  <span>Street (20)</span>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Auto-center on selected vehicle</p>
+                  <p className="text-sm text-muted-foreground">Pan map to vehicle when selecting from sidebar</p>
+                </div>
+                <Switch
+                  checked={trackingPrefs.autoCenter}
+                  onCheckedChange={(v) => setTP("autoCenter", v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Dashboard Display Options</CardTitle>
+              <CardDescription>Choose which metrics are shown on vehicle cards</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Show Odometer</p>
+                  <p className="text-sm text-muted-foreground">Display total distance on vehicle detail card</p>
+                </div>
+                <Switch
+                  checked={trackingPrefs.showOdometer}
+                  onCheckedChange={(v) => setTP("showOdometer", v)}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Show Avg Fuel Consumption</p>
+                  <p className="text-sm text-muted-foreground">Display calculated MPG on vehicle card</p>
+                </div>
+                <Switch
+                  checked={trackingPrefs.showFuelConsumption}
+                  onCheckedChange={(v) => setTP("showFuelConsumption", v)}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Show Altitude</p>
+                  <p className="text-sm text-muted-foreground">Display altitude reading from GPS</p>
+                </div>
+                <Switch
+                  checked={trackingPrefs.showAltitude}
+                  onCheckedChange={(v) => setTP("showAltitude", v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center justify-end gap-3">
+            {serverSaving && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Syncing to Traccar server…
+              </span>
+            )}
+            <Button onClick={() => void savePrefs(trackingPrefs)} disabled={serverSaving}>
+              Save Tracking Preferences
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-4">

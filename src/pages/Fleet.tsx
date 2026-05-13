@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,8 @@ import {
   Zap,
   Gauge,
   CheckCircle,
+  Radio,
+  XCircle,
 } from 'lucide-react';
 import FleetMap from '@/components/FleetMap';
 import Vehicle360View from '@/components/Vehicle360View';
@@ -35,6 +37,10 @@ export default function Fleet() {
   const [alerts, setAlerts] = useState<{ type: string; deviceId: number | null; eventTime: string | null }[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const [trackedVehicle, setTrackedVehicle] = useState<Vehicle | null>(null);
+  const [tripLog, setTripLog] = useState<{ time: string; lat: number; lng: number; speed: number }[]>([]);
+  const tripLogRef = useRef(tripLog);
   const { fleetData, loading: fleetLoading, error: fleetError } = useFleetData();
 
   const liveVehicles = useMemo<Vehicle[]>(
@@ -85,10 +91,49 @@ export default function Fleet() {
           distance: Number(item.distance) || 0,
           totalDistance: Number(item.totalDistance) || 0,
           motion: Boolean(item.motion),
+          imageUrl: item.imageUrl || undefined,
         } as Vehicle;
       }),
     [fleetData]
   );
+
+  // Live trip tracking — append position to log every poll cycle
+  useEffect(() => {
+    if (!trackingActive || !trackedVehicle) return;
+    const current = liveVehicles.find((v) => v.id === trackedVehicle.id);
+    if (!current) return;
+    const isMoving = current.motion !== false && current.speed > 0.5;
+    if (!isMoving) return;
+    const entry = {
+      time: new Date().toLocaleTimeString(),
+      lat: current.location.lat,
+      lng: current.location.lng,
+      speed: Math.round(current.speed * 1.852),
+    };
+    const prev = tripLogRef.current;
+    const last = prev[prev.length - 1];
+    if (!last || last.lat !== entry.lat || last.lng !== entry.lng) {
+      const next = [...prev, entry].slice(-50);
+      tripLogRef.current = next;
+      setTripLog(next);
+      setTrackedVehicle(current);
+    }
+  }, [liveVehicles, trackingActive, trackedVehicle]);
+
+  const handleStartTracking = () => {
+    const target = selectedVehicle ?? liveVehicles.find((v) => v.status === 'online') ?? liveVehicles[0];
+    if (!target) return;
+    setTrackedVehicle(target);
+    setTripLog([]);
+    tripLogRef.current = [];
+    setTrackingActive(true);
+    setLiveView(true);
+    setSelectedVehicle(target);
+  };
+
+  const handleStopTracking = () => {
+    setTrackingActive(false);
+  };
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -174,10 +219,17 @@ export default function Fleet() {
                         <MessageSquare className="h-4 w-4 mr-2" />
                         Send Message
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Navigation className="h-4 w-4 mr-2" />
-                        Track Live Trip
-                      </Button>
+                      {trackingActive ? (
+                        <Button variant="destructive" size="sm" onClick={handleStopTracking}>
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Stop Tracking
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={handleStartTracking} disabled={liveVehicles.length === 0}>
+                          <Radio className="h-4 w-4 mr-2" />
+                          Track Live Trip
+                        </Button>
+                      )}
                       <Button 
                         variant={liveView ? "default" : "outline"} 
                         size="sm"
@@ -194,12 +246,13 @@ export default function Fleet() {
                         <>
                           {/* Map takes 2/3 */}
                           <div className="col-span-1 xl:col-span-2 border rounded-lg overflow-hidden h-[50vh] min-h-[320px] xl:h-auto">
-                            <FleetMap 
-                              vehicles={liveVehicles} 
+                            <FleetMap
+                              vehicles={liveVehicles}
                               selectedVehicle={selectedVehicle}
                               onSelectVehicle={setSelectedVehicle}
                               onClearSelection={() => setSelectedVehicle(null)}
                               apiToken={MAPBOX_TOKEN}
+                              liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
                             />
                           </div>
                           {/* 360 View takes 1/3 */}
@@ -208,16 +261,76 @@ export default function Fleet() {
                           </div>
                         </>
                       ) : (
-                        <FleetMap 
-                          vehicles={liveVehicles} 
+                        <FleetMap
+                          vehicles={liveVehicles}
                           selectedVehicle={selectedVehicle}
                           onSelectVehicle={setSelectedVehicle}
                           onClearSelection={() => setSelectedVehicle(null)}
                           apiToken={MAPBOX_TOKEN}
+                          liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
                         />
                       )}
                     </div>
                   </div>
+
+                  {/* Live trip tracking panel */}
+                  {trackingActive && trackedVehicle && (
+                    <div className="border rounded-xl bg-muted/30 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Radio className="h-4 w-4 text-green-500 animate-pulse" />
+                          <span className="font-semibold text-sm">
+                            Live Tracking — {trackedVehicle.name}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            trackedVehicle.motion
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          }`}>
+                            {trackedVehicle.motion ? 'Moving' : 'Stationary'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{tripLog.length} waypoints</span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="rounded-lg bg-background border p-2 text-center">
+                          <p className="text-xs text-muted-foreground">Speed</p>
+                          <p className="font-bold">
+                            {trackedVehicle.motion === false || trackedVehicle.speed < 0.5
+                              ? '0'
+                              : Math.round(trackedVehicle.speed * 1.852)}{' '}
+                            km/h
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-background border p-2 text-center">
+                          <p className="text-xs text-muted-foreground">Lat</p>
+                          <p className="font-mono text-xs font-medium">{trackedVehicle.location.lat.toFixed(5)}</p>
+                        </div>
+                        <div className="rounded-lg bg-background border p-2 text-center">
+                          <p className="text-xs text-muted-foreground">Lng</p>
+                          <p className="font-mono text-xs font-medium">{trackedVehicle.location.lng.toFixed(5)}</p>
+                        </div>
+                      </div>
+
+                      {tripLog.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto space-y-1">
+                          {[...tripLog].reverse().map((pt, i) => (
+                            <div key={i} className="flex items-center gap-3 text-xs text-muted-foreground px-1">
+                              <span className="font-mono w-16 shrink-0">{pt.time}</span>
+                              <span>{pt.speed} km/h</span>
+                              <span className="font-mono">{pt.lat.toFixed(4)}, {pt.lng.toFixed(4)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {tripLog.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-2">
+                          Waiting for vehicle movement…
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
