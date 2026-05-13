@@ -311,6 +311,7 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const threadIdRef = useRef(`vehicle-${vehicle.deviceId}-${Date.now()}`);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -401,7 +402,7 @@ const VehicleAIChat = ({ vehicle, onClose, onDragStart, useExternalLayout = fals
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg.content,
-          thread_id: `vehicle-${vehicle.deviceId}`,
+          thread_id: threadIdRef.current,
           device_id: String(vehicle.deviceId),
           device_name: vehicle.name,
         }),
