@@ -103,24 +103,72 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
   const displayTrip      = fmtDistance(vehicle.tripOdometer,  prefs.distanceUnit);
   const displayTotal     = fmtDistance(vehicle.totalDistance, prefs.distanceUnit);
 
-  /** Average Fuel Consumption — 20-gallon tank model.
-   *  fuelUsed = percentage consumed × 20 gal
-   *  avgMpg   = total miles driven ÷ gallons used          */
-  const TANK_GALLONS = 20;
-  const fuelUsedGallons = ((100 - latestFuelPercent) / 100) * TANK_GALLONS;
-  const totalMiles = vehicle.totalDistance / 1609.34;
-  const tripMiles  = vehicle.tripOdometer  / 1609.34;
-  const distanceMiles = totalMiles > 0 ? totalMiles : tripMiles;
-  const avgMpg =
-    fuelUsedGallons > 0.5 && distanceMiles > 0.1
-      ? distanceMiles / fuelUsedGallons
-      : null;
-  const avgFuelLabel = avgMpg !== null ? `${avgMpg.toFixed(1)} mpg` : 'N/A';
+  /** Format L/100km (or MPG) respecting prefs unit. */
+  const fmtL100km = (l100km: number) => {
+    if (prefs.fuelUnit === 'us_gallons')  return `${(235.214 / l100km).toFixed(1)} mpg`;
+    if (prefs.fuelUnit === 'imp_gallons') return `${(282.481 / l100km).toFixed(1)} mpg`;
+    return `${l100km.toFixed(1)} L/100km`;
+  };
 
-  // Raw Traccar fuelConsumption field (litres consumed per session / total)
+  /**
+   * Average Fuel Consumption — two-path logic to handle the two ways Traccar
+   * devices report `fuelConsumption`:
+   *
+   *  PATH A – Cumulative mL counter (large values > 200):
+   *    Many OBD devices report accumulated fuel used in millilitres.
+   *    L/100km = (rawValue ÷ 1000) ÷ distanceKm × 100
+   *    Works even when the vehicle is stationary.
+   *
+   *  PATH B – Instantaneous L/h rate (small values ≤ 200):
+   *    Some devices report a live fuel-flow rate in litres-per-hour.
+   *    L/100km = (L/h) ÷ (km/h) × 100   [requires the vehicle to be moving]
+   */
+  const { avgFuelLabel, avgFuelMethod } = (() => {
+    const raw     = vehicle.fuelConsumption;
+    const speedKmh = vehicle.speed * 1.852;
+    const distKm  = vehicle.tripOdometer > 0
+      ? vehicle.tripOdometer / 1000
+      : vehicle.totalDistance / 1000;
+
+    if (raw <= 0) return { avgFuelLabel: 'N/A', avgFuelMethod: 'none' as const };
+
+    // PATH A — accumulated mL total
+    if (raw > 200 && distKm >= 1) {
+      const fuelL  = raw / 1000;                    // mL → L
+      const l100km = (fuelL / distKm) * 100;
+      if (l100km >= 0.5 && l100km <= 200) {
+        return { avgFuelLabel: fmtL100km(l100km), avgFuelMethod: 'distance' as const };
+      }
+    }
+
+    // PATH B — L/h rate (needs speed)
+    if (raw <= 200 && speedKmh >= 1) {
+      const l100km = (raw / speedKmh) * 100;
+      if (l100km >= 0.5 && l100km <= 150) {
+        return { avgFuelLabel: fmtL100km(l100km), avgFuelMethod: 'rate' as const };
+      }
+    }
+
+    return { avgFuelLabel: 'N/A', avgFuelMethod: 'none' as const };
+  })();
+
+  /** Format an instantaneous fuel flow rate (L/h) with unit preference. */
+  const fmtFuelRate = (lph: number) => {
+    if (prefs.fuelUnit === 'us_gallons')  return `${(lph * 0.264172).toFixed(1)} gal/h`;
+    if (prefs.fuelUnit === 'imp_gallons') return `${(lph * 0.219969).toFixed(1)} imp gal/h`;
+    return `${lph.toFixed(1)} L/h`;
+  };
+
+  // Secondary row: L/h rate when available (PATH B devices only)
   const traccarFuelDisplay =
-    vehicle.fuelConsumption > 0
-      ? fmtFuel(vehicle.fuelConsumption, prefs.fuelUnit)
+    vehicle.fuelConsumption > 0 && vehicle.fuelConsumption <= 200
+      ? fmtFuelRate(vehicle.fuelConsumption)
+      : null;
+
+  // Secondary row: total fuel used in sensible units (PATH A devices)
+  const fuelUsedDisplay =
+    vehicle.fuelConsumption > 200
+      ? fmtFuel(vehicle.fuelConsumption / 1000, prefs.fuelUnit)   // mL → L
       : null;
 
   // Vehicle image stored in Traccar device attributes.imageUrl
@@ -309,10 +357,9 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             </div>
           )}
 
-          {/* Fuel consumption block — shows both values when available */}
+          {/* Fuel consumption block */}
           {prefs.showFuelConsumption && (
             <div className="rounded-xl bg-muted/50 border border-border/60 p-3 space-y-2">
-              {/* Avg Fuel Consumption — 20-gal tank model */}
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <BarChart3 className="h-3.5 w-3.5" />
@@ -321,19 +368,38 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
                 <span className="font-semibold text-foreground">{avgFuelLabel}</span>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                {TANK_GALLONS}-gal tank model · {latestFuelPercent.toFixed(0)}% fuel remaining
+                {avgFuelMethod === 'distance'
+                  ? `Based on device fuel counter · ${latestFuelPercent.toFixed(0)}% remaining`
+                  : avgFuelMethod === 'rate'
+                    ? `Live rate ÷ speed · ${latestFuelPercent.toFixed(0)}% remaining`
+                    : `Fuel data unavailable · ${latestFuelPercent.toFixed(0)}% remaining`}
               </p>
-              {/* Traccar reported fuel consumption (raw field) */}
+
+              {/* PATH B: L/h rate row */}
               {traccarFuelDisplay && (
                 <>
                   <div className="border-t border-border/40 pt-2 flex items-center justify-between text-sm">
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Fuel className="h-3.5 w-3.5" />
-                      <span>Traccar Report</span>
+                      <span>Fuel Rate</span>
                     </div>
                     <span className="font-semibold text-foreground">{traccarFuelDisplay}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">GPS-reported total fuel used</p>
+                  <p className="text-[10px] text-muted-foreground">Instantaneous fuel flow (L/h)</p>
+                </>
+              )}
+
+              {/* PATH A: total fuel used row */}
+              {fuelUsedDisplay && (
+                <>
+                  <div className="border-t border-border/40 pt-2 flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Fuel className="h-3.5 w-3.5" />
+                      <span>Total Fuel Used</span>
+                    </div>
+                    <span className="font-semibold text-foreground">{fuelUsedDisplay}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Cumulative fuel from device odometer</p>
                 </>
               )}
             </div>
@@ -387,7 +453,8 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             />
             <SysRow label="Fuel %" value={`${latestFuelPercent}%`} icon={<Fuel className="h-3 w-3" />} />
             <SysRow label="Avg Consumption" value={avgFuelLabel} icon={<BarChart3 className="h-3 w-3" />} />
-            {traccarFuelDisplay && <SysRow label="Traccar Fuel" value={traccarFuelDisplay} icon={<Fuel className="h-3 w-3" />} />}
+            {traccarFuelDisplay && <SysRow label="Fuel Rate" value={traccarFuelDisplay} icon={<Fuel className="h-3 w-3" />} />}
+            {fuelUsedDisplay && <SysRow label="Fuel Used" value={fuelUsedDisplay} icon={<Fuel className="h-3 w-3" />} />}
             {prefs.showAltitude && <SysRow label="Altitude" value={`${vehicle.altitude.toFixed(0)} m`} />}
             {vehicle.network && <SysRow label="Network" value={vehicle.network} />}
             {vehicle.rpm !== undefined && <SysRow label="RPM" value={String(vehicle.rpm)} />}

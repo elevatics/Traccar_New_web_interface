@@ -24,8 +24,8 @@ export const DEFAULT_PREFS: TrackingPrefs = {
   coordinateFormat: "decimal",
   defaultZoom: 13,
   timezone: "UTC",
-  showOdometer: true,
-  showFuelConsumption: true,
+  showOdometer: false,
+  showFuelConsumption: false,
   showAltitude: false,
   autoCenter: true,
 };

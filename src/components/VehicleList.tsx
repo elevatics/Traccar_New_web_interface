@@ -152,7 +152,6 @@ const VehicleList = ({
   };
 
   const getVehicleForSelection = (fleetVehicle: FleetListItem): Vehicle => {
-    const nowIso = new Date().toISOString();
     const matchedVehicle = vehicles.find(
       (vehicle) => String(vehicle.id) === String(fleetVehicle.id)
     );
@@ -184,10 +183,10 @@ const VehicleList = ({
         address: fleetVehicle.address || 'Live location',
       },
       speed: fleetVehicle.speed,
-      serverTime: fleetVehicle.serverTime || nowIso,
-      deviceTime: fleetVehicle.deviceTime || nowIso,
-      fixTime: fleetVehicle.fixTime || nowIso,
-      lastUpdate: fleetVehicle.lastUpdate || nowIso,
+      serverTime: fleetVehicle.serverTime || '',
+      deviceTime: fleetVehicle.deviceTime || '',
+      fixTime: fleetVehicle.fixTime || '',
+      lastUpdate: fleetVehicle.lastUpdate || '',
       fuelLevel: Number(fleetVehicle.fuelLevel) || 0,
       odometer: Number(fleetVehicle.odometer) || 0,
       outdated: Boolean(fleetVehicle.outdated),

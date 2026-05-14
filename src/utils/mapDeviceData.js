@@ -8,6 +8,20 @@ export const mapDeviceData = (devices = [], positions = []) => {
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
+  /**
+   * Normalize a raw fuel-level value to a 0–100 percentage.
+   * Traccar devices report fuel either as a fraction (0.0–1.0) or as a
+   * percentage (0–100) depending on the protocol.  Values < 1 are treated
+   * as fractions and multiplied by 100; values > 100 are clamped to 100.
+   */
+  const normalizeFuelPct = (value) => {
+    const n = asNumber(value);
+    if (n <= 0) return 0;
+    if (n > 100) return 100;
+    if (n < 1) return Math.round(n * 100); // fraction → percent
+    return Math.round(n);                   // already a percent
+  };
+
   const asBoolean = (value, fallback = false) => {
     if (value === true || value === false) {
       return value;
@@ -68,7 +82,7 @@ export const mapDeviceData = (devices = [], positions = []) => {
         deviceTime: position?.deviceTime || null,
         fixTime: position?.fixTime || null,
         lastUpdate: device.lastUpdate || position?.fixTime || null,
-        fuelLevel: asNumber(
+        fuelLevel: normalizeFuelPct(
           positionAttributes.fuelLevel ?? deviceAttributes.fuelLevel
         ),
         odometer: asNumber(
@@ -108,7 +122,7 @@ export const mapDeviceData = (devices = [], positions = []) => {
         obdSpeed: positionAttributes.obdSpeed ?? deviceAttributes.obdSpeed,
         intakeTemp:
           positionAttributes.intakeTemp ?? deviceAttributes.intakeTemp,
-        fuel: asNumber(positionAttributes.fuel ?? deviceAttributes.fuel),
+        fuel: normalizeFuelPct(positionAttributes.fuel ?? deviceAttributes.fuel),
         distance: asNumber(
           positionAttributes.distance ?? deviceAttributes.distance
         ),

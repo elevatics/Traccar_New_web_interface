@@ -33,7 +33,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">Speed</p>
-              <p className="font-medium text-card-foreground">{vehicle.speed} mph</p>
+              <p className="font-medium text-card-foreground">{Math.round(vehicle.speed * 1.852)} km/h</p>
             </div>
           </div>
 
@@ -41,7 +41,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
             <Fuel className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">Fuel</p>
-              <p className="font-medium text-card-foreground">{vehicle.fuelLevel}%</p>
+              <p className="font-medium text-card-foreground">{vehicle.fuel > 0 ? vehicle.fuel : vehicle.fuelLevel}%</p>
             </div>
           </div>
 
@@ -65,7 +65,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
         </div>
 
         <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-          Odometer: {vehicle.odometer.toLocaleString()} miles
+          Odometer: {(vehicle.odometer / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km
         </div>
       </div>
     </Card>

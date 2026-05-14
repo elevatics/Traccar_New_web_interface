@@ -85,7 +85,7 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-sm">
 
         {/* Brand header */}
-        <div className="flex flex-col items-center gap-3 mb-6">
+        {/* <div className="flex flex-col items-center gap-3 mb-6">
           <div className="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center shadow-xl">
             <MapPin className="h-7 w-7 text-white" />
           </div>
@@ -93,7 +93,7 @@ export default function Login() {
             <h1 className="text-2xl font-bold text-white tracking-tight">FleetTrack Pro</h1>
             <p className="text-white/50 text-xs mt-0.5">GPS Fleet Management</p>
           </div>
-        </div>
+        </div> */}
 
         {/* Card */}
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-7 space-y-5">

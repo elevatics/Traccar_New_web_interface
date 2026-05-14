@@ -379,9 +379,9 @@ export default function Fleet() {
                         </div>
                       </div>
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                        <div>Speed: {vehicle.speed} km/h</div>
-                        <div>Fuel: {vehicle.fuelLevel}%</div>
-                        <div>Odometer: {vehicle.odometer} km</div>
+                        <div>Speed: {Math.round(vehicle.speed * 1.852)} km/h</div>
+                        <div>Fuel: {(vehicle.fuel > 0 ? vehicle.fuel : vehicle.fuelLevel).toFixed(0)}%</div>
+                        <div>Odometer: {(vehicle.odometer / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km</div>
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground truncate">
                         {vehicle.location.address}

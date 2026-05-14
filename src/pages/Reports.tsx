@@ -1155,7 +1155,7 @@ export default function Reports() {
       {/* ── Fleet Analytics sub-tabs ── */}
       <div>
         <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
-          {submenuItems.map(({ id, label, icon: Icon }) => (
+          {/* {submenuItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveSubmenu(id)}
@@ -1169,7 +1169,7 @@ export default function Reports() {
               <Icon className="h-3.5 w-3.5" />
               {label}
             </button>
-          ))}
+          ))} */}
         </div>
         {renderSubmenuContent()}
       </div>

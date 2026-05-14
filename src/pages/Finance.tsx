@@ -6,6 +6,8 @@ import { CircleDollarSign, Fuel, Gauge, Truck } from "lucide-react";
 
 const FUEL_PRICE_PER_LITER = 1.25;
 const COST_PER_KM = 0.22;
+/** Assumed average fleet consumption used for cost estimation (L/100 km). */
+const ASSUMED_L_PER_100KM = 12;
 
 export default function Finance() {
   const { fleetData, loading, error } = useFleetData();
@@ -17,10 +19,10 @@ export default function Finance() {
       const km = Number(item.totalDistance || item.distance || 0) / 1000;
       return sum + (Number.isFinite(km) ? km : 0);
     }, 0);
-    const totalFuelLiters = fleetData.reduce((sum: number, item: any) => {
-      const liters = Number(item.fuelConsumption || item.fuelLevel || 0);
-      return sum + (Number.isFinite(liters) ? liters : 0);
-    }, 0);
+    // Estimate fuel consumed from distance driven at an assumed fleet average rate.
+    // fuelConsumption is an L/h rate (not total litres), and fuelLevel is a
+    // percentage — neither can be summed as litres, so we use distance instead.
+    const totalFuelLiters = totalDistanceKm * ASSUMED_L_PER_100KM / 100;
     const estimatedFuelCost = totalFuelLiters * FUEL_PRICE_PER_LITER;
     const estimatedOperatingCost = totalDistanceKm * COST_PER_KM;
 
@@ -72,7 +74,7 @@ export default function Finance() {
               </CardHeader>
               <CardContent className="text-xs text-muted-foreground flex items-center gap-2">
                 <Fuel className="h-4 w-4" />
-                {summary.totalFuelLiters.toFixed(1)} L at ${FUEL_PRICE_PER_LITER}/L
+                ~{summary.totalFuelLiters.toFixed(1)} L est. @ {ASSUMED_L_PER_100KM} L/100km · ${FUEL_PRICE_PER_LITER}/L
               </CardContent>
             </Card>
 
@@ -116,8 +118,11 @@ export default function Finance() {
             <CardContent>
               <div className="space-y-3">
                 {fleetData.slice(0, 12).map((item: any) => {
-                  const speed = Number(item.speed) || 0;
-                  const fuelLevel = Number(item.fuelLevel) || 0;
+                  // speed from Traccar is in knots → convert to km/h
+                  const speedKmh = Math.round((Number(item.speed) || 0) * 1.852);
+                  // prefer 'fuel' attribute; fall back to 'fuelLevel' (both 0–100 %)
+                  const fuel = Number(item.fuel) || 0;
+                  const fuelLevel = fuel > 0 ? fuel : (Number(item.fuelLevel) || 0);
                   const statusLabel = item.status || "unknown";
                   return (
                     <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -129,7 +134,7 @@ export default function Finance() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Badge variant="outline">{statusLabel}</Badge>
-                        <Badge variant="secondary">{speed.toFixed(0)} km/h</Badge>
+                        <Badge variant="secondary">{speedKmh} km/h</Badge>
                         <Badge variant={fuelLevel < 20 ? "destructive" : "outline"}>
                           Fuel {fuelLevel.toFixed(0)}%
                         </Badge>

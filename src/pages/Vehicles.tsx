@@ -64,11 +64,21 @@ export default function Vehicles() {
   const [editVehicleTarget, setEditVehicleTarget] = useState<Vehicle | null>(null);
   const { toast } = useToast();
 
+  /** Traccar speed is in knots — convert to km/h for display. */
+  const toKmh = (knots: number) => Math.round(knots * 1.852);
+  /** Prefer the 'fuel' attribute; fall back to 'fuelLevel'. Both are 0–100 %. */
+  const fuelPct = (v: { fuel?: number; fuelLevel?: number }) => {
+    const f = Number(v.fuel) || 0;
+    return f > 0 ? f : (Number(v.fuelLevel) || 0);
+  };
+  /** Traccar odometer is in metres — convert to km for display. */
+  const fmtOdo = (meters: number) =>
+    `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+
   const vehiclesData = useMemo<Vehicle[]>(
     () =>
       fleetData.map((rawItem) => {
         const item = rawItem as Record<string, unknown>;
-        const nowIso = new Date().toISOString();
         const status =
           item.status === 'online' || item.status === 'idle' || item.status === 'offline'
             ? item.status
@@ -87,10 +97,10 @@ export default function Vehicles() {
             address: item.address || 'Live location unavailable',
           },
           speed: Number(item.speed) || 0,
-          serverTime: item.serverTime || nowIso,
-          deviceTime: item.deviceTime || nowIso,
-          fixTime: item.fixTime || nowIso,
-          lastUpdate: item.lastUpdate || nowIso,
+          serverTime: (item.serverTime as string) || '',
+          deviceTime: (item.deviceTime as string) || '',
+          fixTime: (item.fixTime as string) || '',
+          lastUpdate: (item.lastUpdate as string) || '',
           fuelLevel: Number(item.fuelLevel) || 0,
           odometer: Number(item.odometer) || 0,
           outdated: Boolean(item.outdated),
@@ -139,10 +149,11 @@ export default function Vehicles() {
   const idleCount = vehiclesData.filter((vehicle) => vehicle.status === 'idle').length;
   const offlineCount = vehiclesData.filter((vehicle) => vehicle.status === 'offline').length;
   const avgFuelLevel = vehiclesData.length
-    ? Math.round(vehiclesData.reduce((sum, vehicle) => sum + vehicle.fuelLevel, 0) / vehiclesData.length)
+    ? Math.round(vehiclesData.reduce((sum, v) => sum + fuelPct(v), 0) / vehiclesData.length)
     : 0;
+  // speed is in knots — average then convert to km/h for display
   const avgSpeed = vehiclesData.length
-    ? Math.round(vehiclesData.reduce((sum, vehicle) => sum + vehicle.speed, 0) / vehiclesData.length)
+    ? Math.round(vehiclesData.reduce((sum, v) => sum + v.speed, 0) / vehiclesData.length * 1.852)
     : 0;
 
   const handleViewDetails = (vehicle: Vehicle) => {
@@ -216,7 +227,7 @@ export default function Vehicles() {
   };
 
   const getBatteryStatus = (vehicle: Vehicle) => {
-    const score = Math.max(0, Math.min(100, Math.round((vehicle.fuelLevel * 0.6) + (vehicle.status === 'online' ? 35 : 15))));
+    const score = Math.max(0, Math.min(100, Math.round((fuelPct(vehicle) * 0.6) + (vehicle.status === 'online' ? 35 : 15))));
     if (score >= 75) return { label: 'Excellent', className: 'text-green-600' };
     if (score >= 50) return { label: 'Good', className: 'text-blue-600' };
     if (score >= 30) return { label: 'Fair', className: 'text-yellow-600' };
@@ -225,27 +236,17 @@ export default function Vehicles() {
 
   const getUtilization = (vehicle: Vehicle) => {
     if (vehicle.status === 'online') {
-      return Math.min(100, Math.max(10, Math.round((vehicle.speed / 120) * 100)));
+      // Compare km/h (converted from knots) against a 120 km/h reference
+      return Math.min(100, Math.max(10, Math.round((toKmh(vehicle.speed) / 120) * 100)));
     }
     if (vehicle.status === 'idle') return 35;
     return 0;
   };
 
-  const getDocumentStatus = (vehicle: Vehicle, documentType: 'registration' | 'insurance' | 'inspection') => {
-    const referenceDate = new Date(vehicle.lastUpdate || Date.now());
-    const offsetDays = documentType === 'registration' ? 330 : documentType === 'insurance' ? 240 : 180;
-    const dueDate = new Date(referenceDate.getTime() + offsetDays * 24 * 60 * 60 * 1000);
-    const daysLeft = Math.max(0, Math.ceil((dueDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
-
-    if (daysLeft > 45) return { label: 'Valid', className: 'text-green-600', dateLabel: `Renews in ${daysLeft} days` };
-    if (daysLeft > 10) return { label: 'Due Soon', className: 'text-yellow-600', dateLabel: `Due in ${daysLeft} days` };
-    return { label: 'Action Required', className: 'text-red-600', dateLabel: `Due in ${daysLeft} days` };
-  };
-
   const renderVehicleList = () => (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {filteredVehicles.map((vehicle) => {
-        const health = getHealthStatus(vehicle.fuelLevel);
+        const health = getHealthStatus(fuelPct(vehicle));
         const HealthIcon = health.icon;
         
         return (
@@ -286,11 +287,11 @@ export default function Vehicles() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Gauge className="h-4 w-4 text-muted-foreground" />
-                    <span>{vehicle.speed} km/h</span>
+                    <span>{toKmh(vehicle.speed)} km/h</span>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Fuel className="h-4 w-4 text-muted-foreground" />
-                    <span>{vehicle.fuelLevel}%</span>
+                    <span>{fuelPct(vehicle)}%</span>
                   </div>
                 </div>
 
@@ -375,11 +376,11 @@ export default function Vehicles() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-sm text-muted-foreground">Speed</div>
-                  <div className="font-semibold">{vehicle.speed} km/h</div>
+                  <div className="font-semibold">{toKmh(vehicle.speed)} km/h</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-muted-foreground">Fuel</div>
-                  <div className="font-semibold">{vehicle.fuelLevel}%</div>
+                  <div className="font-semibold">{fuelPct(vehicle)}%</div>
                 </div>
                 <StatusBadge status={vehicle.status} />
               </div>
@@ -393,7 +394,7 @@ export default function Vehicles() {
   const renderHealthView = () => (
     <div className="grid gap-4 md:grid-cols-2">
       {filteredVehicles.map((vehicle) => {
-        const health = getHealthStatus(vehicle.fuelLevel);
+        const health = getHealthStatus(fuelPct(vehicle));
         const HealthIcon = health.icon;
         
         return (
@@ -414,19 +415,19 @@ export default function Vehicles() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Fuel Level</span>
-                    <span className="font-medium">{vehicle.fuelLevel}%</span>
+                    <span className="font-medium">{fuelPct(vehicle)}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
                     <div 
                       className="bg-primary h-2 rounded-full transition-all" 
-                      style={{ width: `${vehicle.fuelLevel}%` }}
+                      style={{ width: `${fuelPct(vehicle)}%` }}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Odometer</span>
-                    <span className="font-medium">{vehicle.odometer.toLocaleString()} km</span>
+                    <span className="font-medium">{fmtOdo(vehicle.odometer)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Battery</span>
@@ -445,49 +446,32 @@ export default function Vehicles() {
 
   const renderDocumentsView = () => (
     <div className="space-y-4">
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center space-y-2">
+          <FileText className="h-8 w-8 mx-auto text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Document tracking not available from Traccar
+          </p>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            Registration, insurance, and inspection dates are not stored in the
+            Traccar API. Configure vehicle maintenance reminders directly in
+            Traccar under <span className="font-medium">Maintenance → Service Intervals</span>.
+          </p>
+        </CardContent>
+      </Card>
       {filteredVehicles.map((vehicle) => (
-        <Card key={vehicle.id}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
+        <Card key={vehicle.id} className="opacity-60">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Car className="h-4 w-4" />
               {vehicle.name}
             </CardTitle>
-            <CardDescription>{vehicle.plateNumber}</CardDescription>
+            <CardDescription className="text-xs">{vehicle.plateNumber} · Last seen: {vehicle.lastUpdate ? new Date(vehicle.lastUpdate).toLocaleString() : 'Unknown'}</CardDescription>
           </CardHeader>
           <CardContent>
-            {(() => {
-              const registrationStatus = getDocumentStatus(vehicle, 'registration');
-              const insuranceStatus = getDocumentStatus(vehicle, 'insurance');
-              const inspectionStatus = getDocumentStatus(vehicle, 'inspection');
-              return (
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Registration</div>
-                <Badge variant="outline" className={registrationStatus.className}>
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  {registrationStatus.label}
-                </Badge>
-                <div className="text-xs text-muted-foreground">{registrationStatus.dateLabel}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Insurance</div>
-                <Badge variant="outline" className={insuranceStatus.className}>
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  {insuranceStatus.label}
-                </Badge>
-                <div className="text-xs text-muted-foreground">{insuranceStatus.dateLabel}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Inspection</div>
-                <Badge variant="outline" className={inspectionStatus.className}>
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {inspectionStatus.label}
-                </Badge>
-                <div className="text-xs text-muted-foreground">{inspectionStatus.dateLabel}</div>
-              </div>
-            </div>
-              );
-            })()}
+            <p className="text-xs text-muted-foreground italic">
+              No document data available — configure in Traccar maintenance settings.
+            </p>
           </CardContent>
         </Card>
       ))}
@@ -705,15 +689,15 @@ export default function Vehicles() {
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Speed</div>
-                <div className="font-medium">{selectedVehicle?.speed} km/h</div>
+                <div className="font-medium">{selectedVehicle ? toKmh(selectedVehicle.speed) : 0} km/h</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Fuel Level</div>
-                <div className="font-medium">{selectedVehicle?.fuelLevel}%</div>
+                <div className="font-medium">{selectedVehicle ? fuelPct(selectedVehicle) : 0}%</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Odometer</div>
-                <div className="font-medium">{selectedVehicle?.odometer.toLocaleString()} km</div>
+                <div className="font-medium">{selectedVehicle ? fmtOdo(selectedVehicle.odometer) : '—'}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Last Update</div>
@@ -745,7 +729,9 @@ export default function Vehicles() {
           </DialogHeader>
           <div className="space-y-4">
             {selectedVehicle && (() => {
-              const health = getHealthStatus(selectedVehicle.fuelLevel);
+              const svFuel = fuelPct(selectedVehicle);
+              const svKmh  = toKmh(selectedVehicle.speed);
+              const health = getHealthStatus(svFuel);
               const HealthIcon = health.icon;
               return (
                 <>
@@ -760,12 +746,12 @@ export default function Vehicles() {
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-muted-foreground">Fuel Level</span>
-                        <span className="font-medium">{selectedVehicle.fuelLevel}%</span>
+                        <span className="font-medium">{svFuel}%</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
                         <div 
                           className="bg-primary h-2 rounded-full" 
-                          style={{ width: `${selectedVehicle.fuelLevel}%` }}
+                          style={{ width: `${svFuel}%` }}
                         />
                       </div>
                     </div>
@@ -786,16 +772,16 @@ export default function Vehicles() {
                       </div>
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Tires</div>
-                        <Badge variant="outline" className={selectedVehicle.speed > 90 ? 'text-yellow-600' : 'text-green-600'}>
-                          {selectedVehicle.speed > 90 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                          {selectedVehicle.speed > 90 ? 'Monitor Wear' : 'Normal'}
+                        <Badge variant="outline" className={svKmh > 90 ? 'text-yellow-600' : 'text-green-600'}>
+                          {svKmh > 90 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                          {svKmh > 90 ? 'Monitor Wear' : 'Normal'}
                         </Badge>
                       </div>
                       <div className="space-y-1">
                         <div className="text-sm text-muted-foreground">Brakes</div>
-                        <Badge variant="outline" className={selectedVehicle.speed > 100 ? 'text-red-600' : 'text-green-600'}>
-                          {selectedVehicle.speed > 100 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-                          {selectedVehicle.speed > 100 ? 'High Usage' : 'Normal'}
+                        <Badge variant="outline" className={svKmh > 110 ? 'text-red-600' : 'text-green-600'}>
+                          {svKmh > 110 ? <AlertTriangle className="h-3 w-3 mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                          {svKmh > 110 ? 'High Usage' : 'Normal'}
                         </Badge>
                       </div>
                     </div>
@@ -834,7 +820,7 @@ export default function Vehicles() {
                 <div>
                   <div className="font-medium">Distance Milestone</div>
                   <div className="text-sm text-muted-foreground">
-                    Odometer: {selectedVehicle ? selectedVehicle.odometer.toLocaleString() : 0} km
+                    Odometer: {selectedVehicle ? fmtOdo(selectedVehicle.odometer) : '—'}
                   </div>
                 </div>
                 <Badge variant="outline" className="text-green-600">Recorded</Badge>
@@ -845,11 +831,11 @@ export default function Vehicles() {
                 <div>
                   <div className="font-medium">Fuel Trend</div>
                   <div className="text-sm text-muted-foreground">
-                    Current fuel: {selectedVehicle ? selectedVehicle.fuelLevel : 0}%
+                    Current fuel: {selectedVehicle ? fuelPct(selectedVehicle) : 0}%
                   </div>
                 </div>
-                <Badge variant="outline" className={selectedVehicle && selectedVehicle.fuelLevel < 30 ? 'text-yellow-600' : 'text-green-600'}>
-                  {selectedVehicle && selectedVehicle.fuelLevel < 30 ? 'Monitor' : 'Stable'}
+                <Badge variant="outline" className={selectedVehicle && fuelPct(selectedVehicle) < 30 ? 'text-yellow-600' : 'text-green-600'}>
+                  {selectedVehicle && fuelPct(selectedVehicle) < 30 ? 'Monitor' : 'Stable'}
                 </Badge>
               </div>
             </div>
@@ -858,7 +844,7 @@ export default function Vehicles() {
                 <div>
                   <div className="font-medium">Driving Activity</div>
                   <div className="text-sm text-muted-foreground">
-                    Speed: {selectedVehicle ? selectedVehicle.speed : 0} km/h
+                    Speed: {selectedVehicle ? toKmh(selectedVehicle.speed) : 0} km/h
                   </div>
                 </div>
                 <Badge variant="outline" className={selectedVehicle?.status === 'online' ? 'text-green-600' : 'text-muted-foreground'}>
