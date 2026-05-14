@@ -293,7 +293,7 @@ export default function Fleet() {
                         <span className="text-xs text-muted-foreground">{tripLog.length} waypoints</span>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                         <div className="rounded-lg bg-background border p-2 text-center">
                           <p className="text-xs text-muted-foreground">Speed</p>
                           <p className="font-bold">

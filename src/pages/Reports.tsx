@@ -498,9 +498,9 @@ function RouteReportSection({
             Fetches position data </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
             {/* Device */}
-            <div className="space-y-1 min-w-[190px]">
+            <div className="space-y-1 flex-1 min-w-0 sm:min-w-[180px] sm:max-w-[240px]">
               <Label className="text-xs font-medium">Vehicle</Label>
               <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
                 <SelectTrigger className="h-9">
@@ -515,7 +515,7 @@ function RouteReportSection({
             </div>
 
             {/* Date range */}
-            <div className="space-y-1 min-w-[140px]">
+            <div className="space-y-1 flex-1 min-w-0 sm:min-w-[130px] sm:max-w-[180px]">
               <Label className="text-xs font-medium">Date Range</Label>
               <Select value={dateRange} onValueChange={setDateRange}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -528,7 +528,7 @@ function RouteReportSection({
             </div>
 
             {/* Rows per page */}
-            <div className="space-y-1 min-w-[110px]">
+            <div className="space-y-1 flex-1 min-w-0 sm:min-w-[100px] sm:max-w-[140px]">
               <Label className="text-xs font-medium">Rows / page</Label>
               <Select
                 value={String(pageSize)}
@@ -544,7 +544,7 @@ function RouteReportSection({
             </div>
 
             {/* Load */}
-            <Button onClick={() => loadPositions()} disabled={loading} className="h-9">
+            <Button onClick={() => loadPositions()} disabled={loading} className="h-9 w-full sm:w-auto">
               {loading
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</>
                 : <><RefreshCw className="h-4 w-4 mr-2" />Load Report</>}
@@ -552,17 +552,17 @@ function RouteReportSection({
 
             {/* Export — only when data available */}
             {positions.length > 0 && (
-              <>
-                <Button variant="outline" className="h-9" onClick={() => exportCsv(positions, visibleCols)}>
-                  <Download className="h-4 w-4 mr-2" />CSV
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => exportCsv(positions, visibleCols)}>
+                  <Download className="h-4 w-4 mr-1.5" />CSV
                 </Button>
-                <Button variant="outline" className="h-9" onClick={() => window.print()}>
-                  <FileDown className="h-4 w-4 mr-2" />PDF
+                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => window.print()}>
+                  <FileDown className="h-4 w-4 mr-1.5" />PDF
                 </Button>
-                <Button variant="outline" className="h-9" onClick={() => setScheduleDialog(true)}>
-                  <Calendar className="h-4 w-4 mr-2" />Schedule
+                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => setScheduleDialog(true)}>
+                  <Calendar className="h-4 w-4 mr-1.5" />Schedule
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </CardContent>

@@ -11,6 +11,8 @@ import {
   User,
   LogOut,
   ShieldCheck,
+  Navigation2,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
@@ -28,6 +30,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserRole, rolePermissions } from "@/contexts/UserRoleContext";
 import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
 import { getCurrentSession } from "@/services/authService";
@@ -36,6 +39,7 @@ const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Fleet", url: "/fleet", icon: Map },
   { title: "Trips", url: "/trips", icon: RouteIcon },
+  { title: "Replay", url: "/replay", icon: Navigation2 },
   { title: "Drivers", url: "/drivers", icon: Users },
   { title: "Vehicles", url: "/vehicles", icon: Car },
   // { title: "Maintenance", url: "/maintenance", icon: Wrench },
@@ -45,11 +49,12 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, setOpenMobile } = useSidebar();
   const { role } = useUserRole();
   const { logout } = useTraccarAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const collapsed = state === "collapsed";
+  const isMobile = useIsMobile();
 
   const allowedPaths = rolePermissions[role];
   const filteredMenuItems = menuItems.filter((item) =>
@@ -76,16 +81,24 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
             <Map className="h-5 w-5" />
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
+            <div className="flex flex-col flex-1 min-w-0">
               <span className="text-sm font-semibold">Turet Telematics</span>
-              <span className="text-xs text-muted-foreground">
-                GPS Tracking
-              </span>
+              <span className="text-xs text-muted-foreground">GPS Tracking</span>
             </div>
+          )}
+          {/* Close button — only on mobile */}
+          {isMobile && (
+            <button
+              onClick={() => setOpenMobile(false)}
+              className="ml-auto p-1.5 rounded-md hover:bg-sidebar-accent transition-colors text-sidebar-foreground/60 hover:text-sidebar-foreground"
+              aria-label="Close sidebar"
+            >
+              <X className="h-4 w-4" />
+            </button>
           )}
         </div>
       </SidebarHeader>

@@ -725,35 +725,37 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     <div className="relative h-full w-full fleet-map-root">
       <div ref={mapContainer} className="absolute inset-0" />
 
-      <div className="absolute top-4 left-4 flex gap-2 z-10">
+      <div className="absolute top-4 left-4 flex flex-wrap gap-1.5 z-10 max-w-[calc(100%-5rem)]">
         <Button
           variant={mapStyle === 'streets' ? 'default' : 'secondary'}
           size="sm"
           onClick={() => setMapStyle('streets')}
-          className="shadow-lg"
+          className="shadow-lg h-8 px-2 sm:px-3"
+          title="Street view"
         >
-          <MapIcon className="h-4 w-4 mr-2" />
-          Street
+          <MapIcon className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline text-xs">Street</span>
         </Button>
         <Button
           variant={mapStyle === 'satellite' ? 'default' : 'secondary'}
           size="sm"
           onClick={() => setMapStyle('satellite')}
-          className="shadow-lg"
+          className="shadow-lg h-8 px-2 sm:px-3"
+          title="Satellite view"
         >
-          <Satellite className="h-4 w-4 mr-2" />
-          Satellite
+          <Satellite className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline text-xs">Satellite</span>
         </Button>
         <Button
           variant={mapStyle === 'traffic' ? 'default' : 'secondary'}
           size="sm"
           onClick={() => setMapStyle('traffic')}
-          className="shadow-lg"
+          className="shadow-lg h-8 px-2 sm:px-3"
+          title="Traffic view"
         >
-          <Layers className="h-4 w-4 mr-2" />
-          Traffic
+          <Layers className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline text-xs">Traffic</span>
         </Button>
-        {/* Re-center button — always fits back to all device locations at current defaultZoom */}
         <Button
           variant="secondary"
           size="sm"
@@ -761,11 +763,11 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
             hasFittedLiveFleet.current = false;
             fitToDevices(800);
           }}
-          className="shadow-lg"
+          className="shadow-lg h-8 px-2 sm:px-3"
           title={`Fit map to all devices (zoom ${prefs.defaultZoom})`}
         >
-          <Locate className="h-4 w-4 mr-2" />
-          Re-center
+          <Locate className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline text-xs">Re-center</span>
         </Button>
       </div>
 

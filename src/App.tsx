@@ -18,6 +18,7 @@ import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import UserAccess from "./pages/UserAccess";
+import Replay from "./pages/Replay";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -56,6 +57,7 @@ const App = () => (
                 <Route path="/vehicles" element={<Vehicles />} />
                 <Route path="/maintenance" element={<Maintenance />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/replay" element={<Replay />} />
                 <Route path="/finance" element={<Finance />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/profile" element={<Profile />} />

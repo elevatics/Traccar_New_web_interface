@@ -31,7 +31,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">Manage your account and application preferences</p>
@@ -57,7 +57,7 @@ export default function Settings() {
               <CardDescription>Update your personal information and profile settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
                   <Input id="firstName" placeholder="John" />
