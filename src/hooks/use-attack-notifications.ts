@@ -4,7 +4,7 @@ import type { ToastAlert } from "@/components/vps/attack-toast";
 
 export type { ToastAlert };
 
-const VPS_BASE = "http://15.204.117.106:8090";
+const VPS_BASE = "/vps-api";
 const POLL_INTERVAL_MS = 10_000;
 
 const TYPE_EMOJI: Record<string, string> = {

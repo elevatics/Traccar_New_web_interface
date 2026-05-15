@@ -1,6 +1,6 @@
 import type { SecurityData, SummaryData, RawEvent, TrendPoint, EnrichedIP, TopIP } from "@/lib/vps/types";
 
-const VPS_BASE = "http://15.204.117.106:8090";
+const VPS_BASE = "/vps-api";
 
 export async function fetchVpsSecurityData(): Promise<SecurityData> {
   const [summaryRes, eventsRes] = await Promise.all([
