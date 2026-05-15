@@ -87,7 +87,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold">Turet Telematics</span>
+              <span className="text-sm font-semibold">Elevatics</span>
               <span className="text-xs text-muted-foreground">GPS Tracking</span>
             </div>
           )}
