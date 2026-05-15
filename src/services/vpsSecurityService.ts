@@ -68,7 +68,7 @@ async function geoEnrichIPs(topIPs: TopIP[]): Promise<EnrichedIP[]> {
   const countMap = Object.fromEntries(topIPs.map((r) => [r.ip, r.count]));
   const queries = topIPs.slice(0, 100).map((r) => ({ query: r.ip }));
   try {
-    const res = await fetch("https://ip-api.com/batch?fields=status,query,country,countryCode,isp,org", {
+    const res = await fetch("/vps-api/geo-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(queries),

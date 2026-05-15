@@ -34,7 +34,7 @@ function classifyEvent(e: RawEvent): AlertType | null {
 async function geoEnrichSingle(ip: string): Promise<{ country: string; countryCode: string; org: string }> {
   try {
     const res = await fetch(
-      "https://ip-api.com/batch?fields=status,query,country,countryCode,isp,org",
+      "/vps-api/geo-batch",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
