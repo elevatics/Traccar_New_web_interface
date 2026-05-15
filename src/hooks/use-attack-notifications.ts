@@ -34,7 +34,7 @@ function classifyEvent(e: RawEvent): AlertType | null {
 async function geoEnrichSingle(ip: string): Promise<{ country: string; countryCode: string; org: string }> {
   try {
     const res = await fetch(
-      "http://ip-api.com/batch?fields=status,query,country,countryCode,isp,org",
+      "https://ip-api.com/batch?fields=status,query,country,countryCode,isp,org",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +126,7 @@ export function useAttackNotifications() {
     // Seed lastSeenId so we only alert on NEW events going forward
     async function seed() {
       try {
-        const res = await fetch(`${VPS_BASE}/api/events?limit=1`);
+        const res = await fetch(`${VPS_BASE}/events?limit=1`);
         if (res.ok) {
           const events: RawEvent[] = await res.json();
           if (events.length > 0) lastSeenIdRef.current = events[0].id;
@@ -139,7 +139,7 @@ export function useAttackNotifications() {
     async function poll() {
       if (stopped) return;
       try {
-        const res = await fetch(`${VPS_BASE}/api/events?limit=50`, {
+        const res = await fetch(`${VPS_BASE}/events?limit=50`, {
           signal: AbortSignal.timeout(8000),
         });
         if (!res.ok) return;

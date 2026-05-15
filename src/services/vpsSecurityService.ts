@@ -1,11 +1,12 @@
 import type { SecurityData, SummaryData, RawEvent, TrendPoint, EnrichedIP, TopIP } from "@/lib/vps/types";
 
 const VPS_BASE = "/vps-api";
+// const VPS_BASE = "http://15.204.117.106:8090"
 
 export async function fetchVpsSecurityData(): Promise<SecurityData> {
   const [summaryRes, eventsRes] = await Promise.all([
-    fetch(`${VPS_BASE}/api/summary`),
-    fetch(`${VPS_BASE}/api/events?limit=2000`),
+    fetch(`${VPS_BASE}/summary`),
+    fetch(`${VPS_BASE}/events?limit=2000`),
   ]);
 
   if (!summaryRes.ok) throw new Error(`VPS summary returned ${summaryRes.status}`);
@@ -67,7 +68,7 @@ async function geoEnrichIPs(topIPs: TopIP[]): Promise<EnrichedIP[]> {
   const countMap = Object.fromEntries(topIPs.map((r) => [r.ip, r.count]));
   const queries = topIPs.slice(0, 100).map((r) => ({ query: r.ip }));
   try {
-    const res = await fetch("http://ip-api.com/batch?fields=status,query,country,countryCode,isp,org", {
+    const res = await fetch("https://ip-api.com/batch?fields=status,query,country,countryCode,isp,org", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(queries),
