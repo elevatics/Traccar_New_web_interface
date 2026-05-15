@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
       },
+      "/vps-api": {
+        target: "http://15.204.117.106:8090",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/vps-api/, "/api"),
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

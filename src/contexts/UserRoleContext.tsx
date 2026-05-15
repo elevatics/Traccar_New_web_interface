@@ -54,6 +54,7 @@ export const rolePermissions: Record<UserRole, string[]> = {
     '/settings',
     '/profile',
     '/user-access',
+    '/vps',
   ],
   operations_manager: [
     '/',

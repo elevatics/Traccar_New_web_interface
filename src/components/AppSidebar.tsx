@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Navigation2,
   X,
+  Server,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
@@ -139,6 +140,23 @@ export function AppSidebar() {
                     >
                       <ShieldCheck className="h-4 w-4" />
                       <span>User Access</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+              {isAdmin && allowedPaths.includes("/vps") ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="VPS Monitor">
+                    <NavLink
+                      to="/vps"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : ""
+                      }
+                    >
+                      <Server className="h-4 w-4" />
+                      <span>VPS Monitor</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

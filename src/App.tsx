@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import UserAccess from "./pages/UserAccess";
 import Replay from "./pages/Replay";
+import VpsMonitor from "./pages/VpsMonitor";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/user-access" element={<UserAccess />} />
+                <Route path="/vps" element={<VpsMonitor />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
