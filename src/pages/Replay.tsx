@@ -50,22 +50,17 @@ const PERIOD_OPTIONS = [
 ];
 
 const SPEED_OPTIONS = [
-  { value: '0.25',  label: '0.25×'  },
-  { value: '0.5',   label: '0.5×'   },
-  { value: '1',     label: '1×'     },
-  { value: '2',     label: '2×'     },
-  { value: '4',     label: '4×'     },
-  { value: '8',     label: '8×'     },
-  { value: '16',    label: '16×'    },
-  { value: '32',    label: '32×'    },
-  { value: '64',    label: '64×'    },
-  { value: '128',   label: '128×'   },
-  { value: '256',   label: '256×'   },
-  { value: '512',   label: '512×'   },
-  { value: '1000',  label: '1000×'  },
-  { value: '2000',  label: '2000×'  },
-  { value: '5000',  label: '5000×'  },
-  { value: '10000', label: '10000×' },
+  { value: '0.25', label: '0.25×' },
+  { value: '0.5',  label: '0.5×'  },
+  { value: '1',    label: '1×'    },
+  { value: '2',    label: '2×'    },
+  { value: '4',    label: '4×'    },
+  { value: '8',    label: '8×'    },
+  { value: '16',   label: '16×'   },
+  { value: '32',   label: '32×'   },
+  { value: '64',   label: '64×'   },
+  { value: '128',  label: '128×'  },
+  { value: '256',  label: '256×'  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -682,7 +677,7 @@ export default function Replay() {
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide hidden sm:block">Speed</span>
                       <Select value={speedMult} onValueChange={setSpeedMult}>
-                        <SelectTrigger className="h-7 w-[80px] text-xs">
+                        <SelectTrigger className="h-7 w-[72px] text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
