@@ -18,6 +18,8 @@ interface FleetMapProps {
   apiToken: string;
   /** Optional live trip route to draw as a polyline on the map */
   liveRoute?: { lat: number; lng: number }[];
+  /** ID of the vehicle currently being tracked — renders as a navigation arrow */
+  trackedVehicleId?: string;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -69,6 +71,8 @@ type MarkerEntry = {
   lastLng: number;
   lastStatus: string;
   lastName: string;
+  isArrow: boolean;
+  lastCourse: number;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -212,10 +216,75 @@ const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
   };
 };
 
+// ── Tracked-vehicle arrow marker helpers ─────────────────────────────────────
+
+/** Inject the pulse-ring keyframe once per page load */
+let _trackedPulseInjected = false;
+function ensureTrackedPulseStyle() {
+  if (_trackedPulseInjected) return;
+  _trackedPulseInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes fleet-pulse {
+      0%   { transform: scale(1);   opacity: 0.55; }
+      50%  { transform: scale(1.55); opacity: 0.15; }
+      100% { transform: scale(1);   opacity: 0.55; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function applyArrowInner(innerEl: HTMLDivElement, color: string, course: number) {
+  innerEl.innerHTML = '';
+  innerEl.style.background = color;
+  innerEl.style.display = 'flex';
+  innerEl.style.alignItems = 'center';
+  innerEl.style.justifyContent = 'center';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '20');
+  svg.setAttribute('height', '20');
+  svg.setAttribute('viewBox', '0 0 48 48');
+  (svg as HTMLElement).style.cssText = `transform:rotate(${course}deg);transition:transform 0.15s linear;display:block;`;
+  svg.innerHTML = `<path d="M24 7 L32 38 L24 31 L16 38 Z" fill="white" opacity="0.95"/>`;
+  innerEl.appendChild(svg);
+}
+
+function applyCircleInner(innerEl: HTMLDivElement, color: string, name: string) {
+  innerEl.innerHTML = '';
+  innerEl.style.background = color;
+  innerEl.style.display = 'flex';
+  innerEl.style.alignItems = 'center';
+  innerEl.style.justifyContent = 'center';
+  innerEl.style.fontWeight = 'bold';
+  innerEl.style.color = 'white';
+  innerEl.style.fontSize = '12px';
+  innerEl.textContent = name?.charAt(0) || '?';
+}
+
+function addPulseRing(markerElement: HTMLDivElement, color: string): HTMLDivElement {
+  const ring = document.createElement('div');
+  ring.dataset.role = 'pulse-ring';
+  ring.style.cssText = `
+    position:absolute;inset:-7px;border-radius:50%;
+    border:2px solid ${color};
+    animation:fleet-pulse 1.8s ease-out infinite;
+    pointer-events:none;
+  `;
+  markerElement.style.overflow = 'visible';
+  markerElement.appendChild(ring);
+  return ring;
+}
+
+function removePulseRing(markerElement: HTMLDivElement) {
+  const ring = markerElement.querySelector('[data-role="pulse-ring"]');
+  if (ring) markerElement.removeChild(ring);
+  markerElement.style.overflow = '';
+}
+
 const LIVE_ROUTE_SOURCE = 'live-trip-route-src';
 const LIVE_ROUTE_LAYER  = 'live-trip-route-line';
 
-const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken, liveRoute }: FleetMapProps) => {
+const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken, liveRoute, trackedVehicleId }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
@@ -308,6 +377,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     hasFittedVehiclePreview.current = false;
 
     mapboxgl.accessToken = apiToken;
+
+    ensureTrackedPulseStyle();
 
     const storedView = readStoredFleetMapView();
     const bootstrapView =
@@ -439,21 +510,25 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         markerElement.style.width = '32px';
         markerElement.style.height = '32px';
         markerElement.style.cursor = 'pointer';
+        markerElement.style.position = 'relative';
 
         const innerElement = document.createElement('div');
         innerElement.style.width = '100%';
         innerElement.style.height = '100%';
-        innerElement.style.background = getStatusColor(fleetVehicle.status);
         innerElement.style.border = '3px solid white';
         innerElement.style.borderRadius = '50%';
         innerElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-        innerElement.style.display = 'flex';
-        innerElement.style.alignItems = 'center';
-        innerElement.style.justifyContent = 'center';
-        innerElement.style.fontWeight = 'bold';
-        innerElement.style.color = 'white';
-        innerElement.style.fontSize = '12px';
-        innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
+
+        const isTracked = markerId === trackedVehicleId;
+        const course = Number(fleetVehicle.course) || 0;
+
+        if (isTracked) {
+          applyArrowInner(innerElement, getStatusColor(fleetVehicle.status), course);
+          addPulseRing(markerElement, getStatusColor(fleetVehicle.status));
+        } else {
+          applyCircleInner(innerElement, getStatusColor(fleetVehicle.status), fleetVehicle.name);
+        }
+
         markerElement.appendChild(innerElement);
 
         const popup = new mapboxgl.Popup({ offset: 25 }).setText(fleetVehicle.name);
@@ -475,6 +550,8 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           lastLng: fleetVehicle.lng,
           lastStatus: fleetVehicle.status,
           lastName: fleetVehicle.name,
+          isArrow: isTracked,
+          lastCourse: course,
         };
         return;
       }
@@ -488,15 +565,47 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         existingEntry.lastLng = fleetVehicle.lng;
       }
 
-      if (existingEntry.lastStatus !== fleetVehicle.status) {
-        existingEntry.innerElement.style.background = getStatusColor(fleetVehicle.status);
-        existingEntry.lastStatus = fleetVehicle.status;
-      }
+      const isTracked = markerId === trackedVehicleId;
+      const course = Number(fleetVehicle.course) || 0;
+      const color = getStatusColor(fleetVehicle.status);
 
-      if (existingEntry.lastName !== fleetVehicle.name) {
-        existingEntry.innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
-        existingEntry.popup.setText(fleetVehicle.name);
+      // Switch between arrow and circle when tracked state changes
+      if (isTracked !== existingEntry.isArrow) {
+        if (isTracked) {
+          applyArrowInner(existingEntry.innerElement, color, course);
+          addPulseRing(existingEntry.element, color);
+        } else {
+          applyCircleInner(existingEntry.innerElement, color, fleetVehicle.name);
+          removePulseRing(existingEntry.element);
+        }
+        existingEntry.isArrow = isTracked;
+        existingEntry.lastCourse = course;
+        existingEntry.lastStatus = fleetVehicle.status;
         existingEntry.lastName = fleetVehicle.name;
+      } else {
+        // Update status color
+        if (existingEntry.lastStatus !== fleetVehicle.status) {
+          if (isTracked) {
+            applyArrowInner(existingEntry.innerElement, color, course);
+          } else {
+            existingEntry.innerElement.style.background = color;
+          }
+          existingEntry.lastStatus = fleetVehicle.status;
+        }
+
+        // Update name (circle only)
+        if (!isTracked && existingEntry.lastName !== fleetVehicle.name) {
+          existingEntry.innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
+          existingEntry.popup.setText(fleetVehicle.name);
+          existingEntry.lastName = fleetVehicle.name;
+        }
+
+        // Update arrow rotation
+        if (isTracked && course !== existingEntry.lastCourse) {
+          const svg = existingEntry.innerElement.querySelector('svg') as HTMLElement | null;
+          if (svg) svg.style.transform = `rotate(${course}deg)`;
+          existingEntry.lastCourse = course;
+        }
       }
 
       existingEntry.element.style.cursor = 'pointer';
@@ -511,7 +620,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         delete markers.current[markerId];
       }
     });
-  }, [fleetData, onSelectVehicle, vehiclesById]);
+  }, [fleetData, onSelectVehicle, vehiclesById, trackedVehicleId]);
 
   // Re-apply zoom when defaultZoom preference changes while map is already loaded
   useEffect(() => {

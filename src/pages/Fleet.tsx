@@ -253,6 +253,7 @@ export default function Fleet() {
                               onClearSelection={() => setSelectedVehicle(null)}
                               apiToken={MAPBOX_TOKEN}
                               liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
+                              trackedVehicleId={trackingActive && trackedVehicle ? trackedVehicle.id : undefined}
                             />
                           </div>
                           {/* 360 View takes 1/3 */}
@@ -268,6 +269,7 @@ export default function Fleet() {
                           onClearSelection={() => setSelectedVehicle(null)}
                           apiToken={MAPBOX_TOKEN}
                           liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
+                          trackedVehicleId={trackingActive && trackedVehicle ? trackedVehicle.id : undefined}
                         />
                       )}
                     </div>

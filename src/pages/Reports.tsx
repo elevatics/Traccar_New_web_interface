@@ -487,15 +487,33 @@ function RouteReportSection({
       {/* Filter Bar */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4" />
-            Route Report
-            {selectedDeviceName && (
-              <Badge variant="secondary" className="ml-2 font-normal">{selectedDeviceName}</Badge>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
+                Route Report
+                {selectedDeviceName && (
+                  <Badge variant="secondary" className="ml-2 font-normal">{selectedDeviceName}</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Fetches position data </CardDescription>
+            </div>
+            {/* Export buttons — top-right, shown once data is available */}
+            {positions.length > 0 && (
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Button variant="outline" size="sm" className="h-8" onClick={() => exportCsv(positions, visibleCols)}>
+                  <Download className="h-3.5 w-3.5 mr-1.5" />CSV
+                </Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => window.print()}>
+                  <FileDown className="h-3.5 w-3.5 mr-1.5" />PDF
+                </Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setScheduleDialog(true)}>
+                  <Calendar className="h-3.5 w-3.5 mr-1.5" />Schedule
+                </Button>
+              </div>
             )}
-          </CardTitle>
-          <CardDescription>
-            Fetches position data </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
@@ -549,21 +567,6 @@ function RouteReportSection({
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</>
                 : <><RefreshCw className="h-4 w-4 mr-2" />Load Report</>}
             </Button>
-
-            {/* Export — only when data available */}
-            {positions.length > 0 && (
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => exportCsv(positions, visibleCols)}>
-                  <Download className="h-4 w-4 mr-1.5" />CSV
-                </Button>
-                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => window.print()}>
-                  <FileDown className="h-4 w-4 mr-1.5" />PDF
-                </Button>
-                <Button variant="outline" className="h-9 flex-1 sm:flex-none" onClick={() => setScheduleDialog(true)}>
-                  <Calendar className="h-4 w-4 mr-1.5" />Schedule
-                </Button>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

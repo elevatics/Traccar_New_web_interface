@@ -16,7 +16,7 @@ import {
   Server,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -56,6 +56,7 @@ export function AppSidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const collapsed = state === "collapsed";
   const isMobile = useIsMobile();
+  const location = useLocation();
 
   const allowedPaths = rolePermissions[role];
   const filteredMenuItems = menuItems.filter((item) =>
@@ -88,7 +89,6 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col flex-1 min-w-0">
               <span className="text-sm font-semibold">Elevatics</span>
-              <span className="text-xs text-muted-foreground">GPS Tracking</span>
             </div>
           )}
           {/* Close button — only on mobile */}
@@ -111,16 +111,12 @@ export function AppSidebar() {
             <SidebarMenu>
               {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : ""
-                      }
-                    >
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={location.pathname === item.url}
+                  >
+                    <NavLink to={item.url} end>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -129,15 +125,12 @@ export function AppSidebar() {
               ))}
               {isAdmin && allowedPaths.includes("/user-access") ? (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="User Access">
-                    <NavLink
-                      to="/user-access"
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : ""
-                      }
-                    >
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="User Access"
+                    isActive={location.pathname === "/user-access"}
+                  >
+                    <NavLink to="/user-access">
                       <ShieldCheck className="h-4 w-4" />
                       <span>User Access</span>
                     </NavLink>
@@ -146,15 +139,12 @@ export function AppSidebar() {
               ) : null}
               {isAdmin && allowedPaths.includes("/vps") ? (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="VPS Monitor">
-                    <NavLink
-                      to="/vps"
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : ""
-                      }
-                    >
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="VPS Monitor"
+                    isActive={location.pathname === "/vps"}
+                  >
+                    <NavLink to="/vps">
                       <Server className="h-4 w-4" />
                       <span>VPS Monitor</span>
                     </NavLink>
