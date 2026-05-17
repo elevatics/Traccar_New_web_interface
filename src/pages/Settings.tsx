@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,27 +8,188 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { User, Shield, Bell, Palette, Building2, Plug, Users, FileCheck, MapPin, Gauge, Fuel, Loader2 } from "lucide-react";
+import { User, Shield, Bell, Palette, Building2, Plug, Users, FileCheck, MapPin, Gauge, Fuel, Loader2, Mail, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { useUserRole, UserRole } from "@/contexts/UserRoleContext";
 import { useTrackingPrefs, TrackingPrefs } from "@/contexts/TrackingPrefsContext";
+import { getSmtpConfig, saveSmtpConfig, SmtpConfig, DEFAULT_SMTP } from "@/services/smtpService";
+import { traccarPut } from "@/api/traccarRequest";
+import { getCurrentSession } from "@/services/authService";
+import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
+import { toast } from "sonner";
 
 export default function Settings() {
-  const { role, setRole } = useUserRole();
+  const { user } = useTraccarAuth();
   const { prefs: savedPrefs, savePrefs, serverSaving } = useTrackingPrefs();
+  
+  // ── Profile State ──
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      const parts = (user.name || "").split(" ");
+      setFirstName(parts[0] || "");
+      setLastName(parts.slice(1).join(" ") || "");
+      setProfileEmail(user.email || "");
+      setProfilePhone(user.phone || "");
+    }
+  }, [user]);
+
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setProfileSaving(true);
+    try {
+      const { provider, ...cleanUser } = user;
+      const updatedUser = {
+        ...cleanUser,
+        name: `${firstName} ${lastName}`.trim(),
+        email: profileEmail,
+        phone: profilePhone,
+      };
+      await traccarPut(`/users/${user.id}`, updatedUser);
+      toast.success("Profile updated successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  // ── Security State ──
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const handleUpdatePassword = async () => {
+    if (!user) return;
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const { provider, ...cleanUser } = user;
+      const updatedUser = {
+        ...cleanUser,
+        password: newPassword,
+      };
+      await traccarPut(`/users/${user.id}`, updatedUser);
+      toast.success("Password updated successfully!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password.");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
     sms: false
   });
+
+  useEffect(() => {
+    if (user?.attributes?.notificators) {
+      const notifs = user.attributes.notificators.split(',');
+      setNotifications({
+        email: notifs.includes('mail'),
+        push: notifs.includes('web') || notifs.includes('firebase'),
+        sms: notifs.includes('sms')
+      });
+    }
+  }, [user]);
+
+  const [notificationsSaving, setNotificationsSaving] = useState(false);
+
+  const handleSaveNotifications = async () => {
+    if (!user) return;
+    setNotificationsSaving(true);
+    try {
+      const parts = [];
+      if (notifications.email) parts.push("mail");
+      if (notifications.push) parts.push("web", "firebase");
+      if (notifications.sms) parts.push("sms");
+      
+      const { provider, ...cleanUser } = user;
+      const updatedUser = {
+        ...cleanUser,
+        attributes: {
+          ...(cleanUser.attributes || {}),
+          notificators: parts.join(",")
+        }
+      };
+      
+      await traccarPut(`/users/${user.id}`, updatedUser);
+      toast.success("Notification preferences saved successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save notifications.");
+    } finally {
+      setNotificationsSaving(false);
+    }
+  };
   // Local draft — only committed when user clicks Save
   const [trackingPrefs, setTrackingPrefs] = useState<TrackingPrefs>(savedPrefs);
 
   const setTP = (key: keyof TrackingPrefs, value: unknown) =>
     setTrackingPrefs((p) => ({ ...p, [key]: value }));
 
-  const handleRoleChange = (newRole: string) => {
-    setRole(newRole as UserRole);
+
+  // ── SMTP config state ──────────────────────────────────────────────────────
+  const [smtp, setSmtp] = useState<SmtpConfig>(DEFAULT_SMTP);
+  const [smtpLoading, setSmtpLoading] = useState(false);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpError, setSmtpError] = useState<string | null>(null);
+  const [smtpSaved, setSmtpSaved] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getCurrentSession().then(session => {
+      if (mounted && session?.administrator) {
+        setIsAdmin(true);
+      }
+    }).catch(() => {});
+    
+    setSmtpLoading(true);
+    getSmtpConfig()
+      .then((cfg) => { if (mounted) setSmtp(cfg); })
+      .catch(() => { /* non-admin — leave defaults */ })
+      .finally(() => { if (mounted) setSmtpLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  const handleSmtpSave = async () => {
+    setSmtpSaving(true);
+    setSmtpError(null);
+    setSmtpSaved(false);
+    try {
+      await saveSmtpConfig(smtp);
+      setSmtpSaved(true);
+      toast.success("SMTP settings saved to Traccar server.");
+      setTimeout(() => setSmtpSaved(false), 3000);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to save SMTP settings.";
+      setSmtpError(msg);
+      toast.error(msg);
+    } finally {
+      setSmtpSaving(false);
+    }
   };
+
+  const setS = (key: keyof SmtpConfig, value: unknown) =>
+    setSmtp((p) => ({ ...p, [key]: value }));
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
@@ -42,12 +203,8 @@ export default function Settings() {
           <TabsTrigger value="profile" className="flex items-center gap-1.5"><User className="w-4 h-4" /><span className="hidden sm:inline">Profile</span></TabsTrigger>
           <TabsTrigger value="security" className="flex items-center gap-1.5"><Shield className="w-4 h-4" /><span className="hidden sm:inline">Security</span></TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-1.5"><Bell className="w-4 h-4" /><span className="hidden sm:inline">Notifications</span></TabsTrigger>
-          <TabsTrigger value="tracking" className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /><span className="hidden sm:inline">Tracking</span></TabsTrigger>
           <TabsTrigger value="preferences" className="flex items-center gap-1.5"><Palette className="w-4 h-4" /><span className="hidden sm:inline">Preferences</span></TabsTrigger>
-          <TabsTrigger value="company" className="flex items-center gap-1.5"><Building2 className="w-4 h-4" /><span className="hidden sm:inline">Company</span></TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-1.5"><Plug className="w-4 h-4" /><span className="hidden sm:inline">Integrations</span></TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-1.5"><Users className="w-4 h-4" /><span className="hidden sm:inline">Team</span></TabsTrigger>
-          <TabsTrigger value="compliance" className="flex items-center gap-1.5"><FileCheck className="w-4 h-4" /><span className="hidden sm:inline">Compliance</span></TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
@@ -60,43 +217,28 @@ export default function Settings() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" />
+                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" />
+                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="john.doe@company.com" />
+                <Input id="email" type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} placeholder="john.doe@company.com" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+1 (555) 000-0000" />
+                <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="+1 (555) 000-0000" />
               </div>
-              <Button>Save Changes</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>User Role (Demo)</CardTitle>
-              <CardDescription>Change your role to see different navigation menus</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Select value={role} onValueChange={handleRoleChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fleet_manager">Fleet Manager / Admin</SelectItem>
-                  <SelectItem value="operations_manager">Operations Manager</SelectItem>
-                  <SelectItem value="driver">Driver</SelectItem>
-                  <SelectItem value="maintenance_staff">Maintenance Staff</SelectItem>
-                  <SelectItem value="finance">Finance / Accounting</SelectItem>
-                </SelectContent>
-              </Select>
+              <Button onClick={handleSaveProfile} disabled={profileSaving}>
+                {profileSaving ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -110,35 +252,26 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
+                <Input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
+                <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
+                <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </div>
-              <Button>Update Password</Button>
+              <Button onClick={handleUpdatePassword} disabled={passwordSaving}>
+                {passwordSaving ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating…</>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-              <CardDescription>Add an extra layer of security to your account</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Enable 2FA</p>
-                  <p className="text-sm text-muted-foreground">Require a code in addition to your password</p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-4">
@@ -171,12 +304,18 @@ export default function Settings() {
                 </div>
                 <Switch checked={notifications.sms} onCheckedChange={(checked) => setNotifications({...notifications, sms: checked})} />
               </div>
+              <Button onClick={handleSaveNotifications} disabled={notificationsSaving} className="mt-4">
+                {notificationsSaving ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
+                ) : (
+                  "Save Preferences"
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* ── Tracking Preferences ── */}
-        <TabsContent value="tracking" className="space-y-4">
+        <TabsContent value="preferences" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -376,172 +515,13 @@ export default function Settings() {
               </span>
             )}
             <Button onClick={() => void savePrefs(trackingPrefs)} disabled={serverSaving}>
-              Save Tracking Preferences
+              Save App Preferences
             </Button>
           </div>
         </TabsContent>
 
-        <TabsContent value="preferences" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Display Preferences</CardTitle>
-              <CardDescription>Customize your application appearance</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Theme</Label>
-                <Select defaultValue="light">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Language</Label>
-                <Select defaultValue="en">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Timezone</Label>
-                <Select defaultValue="utc">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="utc">UTC</SelectItem>
-                    <SelectItem value="est">Eastern Time</SelectItem>
-                    <SelectItem value="pst">Pacific Time</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="company" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Company Information</CardTitle>
-              <CardDescription>Manage your fleet configuration and company details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="companyName">Company Name</Label>
-                <Input id="companyName" placeholder="Fleet Solutions Inc." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fleetSize">Fleet Size</Label>
-                <Input id="fleetSize" type="number" placeholder="150" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" placeholder="123 Fleet Street" />
-              </div>
-              <Button>Update Company Info</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="integrations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>API Keys & Integrations</CardTitle>
-              <CardDescription>Connect third-party services and manage API access</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input id="apiKey" type="password" value="sk_test_********************" readOnly />
-              </div>
-              <Button variant="outline">Generate New API Key</Button>
-              <Separator />
-              <div className="space-y-4">
-                <h4 className="font-medium">Connected Services</h4>
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">Mapbox Integration</p>
-                    <p className="text-sm text-muted-foreground">Map and location services</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="team" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Management</CardTitle>
-              <CardDescription>Manage users and their roles</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button>Invite Team Member</Button>
-              <Separator />
-              <div className="space-y-2">
-                {['John Doe - Fleet Manager', 'Jane Smith - Operations Manager', 'Mike Johnson - Driver'].map((member, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
-                    <span>{member}</span>
-                    <Button variant="outline" size="sm">Manage</Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="compliance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Regulatory Compliance</CardTitle>
-              <CardDescription>Configure compliance and regulatory settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">GDPR Compliance</p>
-                  <p className="text-sm text-muted-foreground">Enable data protection features</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">DOT Compliance</p>
-                  <p className="text-sm text-muted-foreground">Department of Transportation regulations</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <Separator />
-              <div className="space-y-2">
-                <Label>Audit Log Retention</Label>
-                <Select defaultValue="90">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 days</SelectItem>
-                    <SelectItem value="90">90 days</SelectItem>
-                    <SelectItem value="365">1 year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

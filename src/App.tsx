@@ -21,6 +21,7 @@ import UserAccess from "./pages/UserAccess";
 import Replay from "./pages/Replay";
 import VpsMonitor from "./pages/VpsMonitor";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,36 +43,37 @@ const ProtectedRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TrackingPrefsProvider>
-    <UserRoleProvider>
-      <TraccarAuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route element={<ProtectedRoutes />}>
-                <Route path="/" element={<Index />} />
-                <Route path="/fleet" element={<Fleet />} />
-                <Route path="/trips" element={<Trips />} />
-                <Route path="/drivers" element={<Drivers />} />
-                <Route path="/vehicles" element={<Vehicles />} />
-                <Route path="/maintenance" element={<Maintenance />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/replay" element={<Replay />} />
-                <Route path="/finance" element={<Finance />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/user-access" element={<UserAccess />} />
-                <Route path="/vps" element={<VpsMonitor />} />
-              </Route>
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </TraccarAuthProvider>
-    </UserRoleProvider>
+      <UserRoleProvider>
+        <TraccarAuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route element={<ProtectedRoutes />}>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/fleet" element={<Fleet />} />
+                  <Route path="/trips" element={<Trips />} />
+                  <Route path="/drivers" element={<Drivers />} />
+                  <Route path="/vehicles" element={<Vehicles />} />
+                  <Route path="/maintenance" element={<Maintenance />} />
+                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/replay" element={<Replay />} />
+                  <Route path="/finance" element={<Finance />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/user-access" element={<UserAccess />} />
+                  <Route path="/vps" element={<VpsMonitor />} />
+                </Route>
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </TraccarAuthProvider>
+      </UserRoleProvider>
     </TrackingPrefsProvider>
   </QueryClientProvider>
 );

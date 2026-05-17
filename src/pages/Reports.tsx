@@ -802,9 +802,6 @@ function RouteReportSection({
         <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground space-y-3">
           <Navigation className="h-12 w-12 opacity-20" />
           <p className="text-sm font-medium">Select a vehicle and click Load Report</p>
-          <p className="text-xs">
-            Loads position history from <code className="bg-muted px-1 rounded">/api/reports/route</code>
-          </p>
         </div>
       )}
 
@@ -1155,27 +1152,7 @@ export default function Reports() {
         <RouteReportSection fleetData={fleetData} initialDeviceId={initialDeviceId} />
       </div>
 
-      {/* ── Fleet Analytics sub-tabs ── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
-          {/* {submenuItems.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveSubmenu(id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
-                activeSubmenu === id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))} */}
-        </div>
-        {renderSubmenuContent()}
-      </div>
+
 
       {/* Dialogs */}
       <Dialog open={viewReportDialog} onOpenChange={setViewReportDialog}>

@@ -81,16 +81,18 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border p-4">
+      <SidebarHeader className="border-sidebar-border p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
-            <Map className="h-5 w-5" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold">Elevatics</span>
-            </div>
-          )}
+          <img
+            src="/elevatics_icon.ico"
+            className={`h-10 w-10 object-contain shrink-0 ${collapsed ? "block" : "hidden"}`}
+            alt="Elevatics Icon"
+          />
+          <img
+            src="/elevactics_logo.png"
+            className={`h-8 w-auto max-h-8 object-contain shrink-0 ${collapsed ? "hidden" : "block"}`}
+            alt="Elevatics Logo"
+          />
           {/* Close button — only on mobile */}
           {isMobile && (
             <button
