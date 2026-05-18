@@ -381,6 +381,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     ensureTrackedPulseStyle();
 
     const storedView = readStoredFleetMapView();
+    const US_CENTER: { center: [number, number]; zoom: number } = { center: [-98.5795, 39.8283], zoom: 4 };
     const bootstrapView =
       storedView ??
       approximateViewFromCoords(
@@ -388,12 +389,13 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           lat: v.location.lat,
           lng: v.location.lng,
         }))
-      );
+      ) ??
+      US_CENTER;
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: bootstrapView?.center ?? [0, 20],
-      zoom: bootstrapView?.zoom ?? prefs.defaultZoom,
+      center: bootstrapView.center,
+      zoom: bootstrapView.zoom,
       pitch: 0,
     });
 
@@ -522,11 +524,11 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
         const isTracked = markerId === trackedVehicleId;
         const course = Number(fleetVehicle.course) || 0;
 
+        // All vehicles show as directional arrow markers (green=online, red=offline)
+        applyArrowInner(innerElement, getStatusColor(fleetVehicle.status), course);
+        // Only the actively tracked vehicle gets the pulse ring
         if (isTracked) {
-          applyArrowInner(innerElement, getStatusColor(fleetVehicle.status), course);
           addPulseRing(markerElement, getStatusColor(fleetVehicle.status));
-        } else {
-          applyCircleInner(innerElement, getStatusColor(fleetVehicle.status), fleetVehicle.name);
         }
 
         markerElement.appendChild(innerElement);
@@ -550,7 +552,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
           lastLng: fleetVehicle.lng,
           lastStatus: fleetVehicle.status,
           lastName: fleetVehicle.name,
-          isArrow: isTracked,
+          isArrow: true,
           lastCourse: course,
         };
         return;
@@ -569,41 +571,24 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       const course = Number(fleetVehicle.course) || 0;
       const color = getStatusColor(fleetVehicle.status);
 
-      // Switch between arrow and circle when tracked state changes
-      if (isTracked !== existingEntry.isArrow) {
-        if (isTracked) {
-          applyArrowInner(existingEntry.innerElement, color, course);
-          addPulseRing(existingEntry.element, color);
-        } else {
-          applyCircleInner(existingEntry.innerElement, color, fleetVehicle.name);
-          removePulseRing(existingEntry.element);
-        }
-        existingEntry.isArrow = isTracked;
-        existingEntry.lastCourse = course;
+      // Manage pulse ring based on tracked state
+      const hasPulse = !!existingEntry.element.querySelector('[data-role="pulse-ring"]');
+      if (isTracked && !hasPulse) {
+        addPulseRing(existingEntry.element, color);
+      } else if (!isTracked && hasPulse) {
+        removePulseRing(existingEntry.element);
+      }
+
+      // Update status color and arrow direction for all vehicles
+      if (existingEntry.lastStatus !== fleetVehicle.status || course !== existingEntry.lastCourse) {
+        applyArrowInner(existingEntry.innerElement, color, course);
         existingEntry.lastStatus = fleetVehicle.status;
-        existingEntry.lastName = fleetVehicle.name;
+        existingEntry.lastCourse = course;
       } else {
-        // Update status color
-        if (existingEntry.lastStatus !== fleetVehicle.status) {
-          if (isTracked) {
-            applyArrowInner(existingEntry.innerElement, color, course);
-          } else {
-            existingEntry.innerElement.style.background = color;
-          }
-          existingEntry.lastStatus = fleetVehicle.status;
-        }
-
-        // Update name (circle only)
-        if (!isTracked && existingEntry.lastName !== fleetVehicle.name) {
-          existingEntry.innerElement.textContent = fleetVehicle.name?.charAt(0) || '?';
-          existingEntry.popup.setText(fleetVehicle.name);
-          existingEntry.lastName = fleetVehicle.name;
-        }
-
-        // Update arrow rotation
-        if (isTracked && course !== existingEntry.lastCourse) {
-          const svg = existingEntry.innerElement.querySelector('svg') as HTMLElement | null;
-          if (svg) svg.style.transform = `rotate(${course}deg)`;
+        // Just update SVG rotation if only course changed
+        const svg = existingEntry.innerElement.querySelector('svg') as HTMLElement | null;
+        if (svg && course !== existingEntry.lastCourse) {
+          svg.style.transform = `rotate(${course}deg)`;
           existingEntry.lastCourse = course;
         }
       }

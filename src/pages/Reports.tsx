@@ -358,9 +358,10 @@ function getCsvValue(pos: RoutePosition, key: ColumnKey): string {
 }
 
 function exportCsv(positions: RoutePosition[], visibleCols: ColumnKey[]) {
-  const header = ALL_COLUMNS.filter((c) => visibleCols.includes(c.key)).map((c) => c.label);
+  const orderedCols = ALL_COLUMNS.filter((c) => visibleCols.includes(c.key));
+  const header = orderedCols.map((c) => c.label);
   const rows = positions.map((pos) =>
-    visibleCols.map((key) => getCsvValue(pos, key))
+    orderedCols.map((col) => getCsvValue(pos, col.key))
   );
   const csv = [header, ...rows]
     .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))

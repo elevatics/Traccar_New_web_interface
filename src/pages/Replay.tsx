@@ -207,7 +207,7 @@ export default function Replay() {
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [78.9629, 22.5937],
+      center: [-98.5795, 39.8283], // continental US center
       zoom: 4,
     });
 
