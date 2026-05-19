@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { US_MAP_VIEW } from '@/utils/mapDefaults';
 import { createGeofence, deleteGeofence, getGeofences, updateGeofence } from '@/services/geofenceService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
@@ -159,6 +160,7 @@ export default function GeofenceManager() {
   const [editPolygonPoints, setEditPolygonPoints] = useState<[number, number][]>([]);
   const [editingGeometryEnabled, setEditingGeometryEnabled] = useState(false);
   const [focusedGeofenceId, setFocusedGeofenceId] = useState<string | null>(null);
+  const hasFittedAllGeofences = useRef(false);
 
   const isPolygonClosed = (points: [number, number][]) => {
     if (points.length < 4) return false;
@@ -285,13 +287,25 @@ export default function GeofenceManager() {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-73.9776, 40.758],
-      zoom: 12,
+      center: US_MAP_VIEW.center,
+      zoom: US_MAP_VIEW.zoom,
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    map.current.on('load', () => {
+      requestAnimationFrame(() => map.current?.resize());
+    });
 
-    return () => { map.current?.remove(); };
+    const resizeMap = () => map.current?.resize();
+    const resizeObserver = new ResizeObserver(resizeMap);
+    resizeObserver.observe(mapContainer.current);
+    window.addEventListener('resize', resizeMap);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', resizeMap);
+      map.current?.remove();
+    };
   }, []);
 
   // Handle map clicks for creation
@@ -617,6 +631,38 @@ export default function GeofenceManager() {
     editName,
   ]);
 
+  // Frame all geofences once when data first loads (stay on US view when empty)
+  useEffect(() => {
+    if (!map.current || isLoading || geofences.length === 0 || hasFittedAllGeofences.current) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasBounds = false;
+
+    geofences.forEach((gf) => {
+      if (gf.polygon_coordinates && gf.polygon_coordinates.length >= 3) {
+        const polygonBounds = getPolygonBounds(gf.polygon_coordinates);
+        if (polygonBounds) {
+          bounds.extend(polygonBounds.getNorthWest());
+          bounds.extend(polygonBounds.getSouthEast());
+          hasBounds = true;
+        }
+      } else if (hasValidCoordinates(gf.center_lng, gf.center_lat)) {
+        bounds.extend([gf.center_lng, gf.center_lat]);
+        hasBounds = true;
+      }
+    });
+
+    if (!hasBounds) return;
+
+    const fit = () => {
+      map.current?.fitBounds(bounds, { padding: 60, duration: 800, maxZoom: 12 });
+      hasFittedAllGeofences.current = true;
+    };
+
+    if (map.current.loaded()) fit();
+    else map.current.once('load', fit);
+  }, [geofences, isLoading]);
+
   const handleSave = () => {
     if (!newName.trim()) {
       toast.error('Please enter a name');
@@ -760,9 +806,9 @@ export default function GeofenceManager() {
   };
 
   return (
-    <div className="flex gap-4 h-[600px]">
+    <div className="flex flex-col lg:flex-row gap-4 min-h-[480px] lg:h-[min(600px,70vh)]">
       {/* Map */}
-      <div className="flex-1 rounded-lg overflow-hidden border border-border relative">
+      <div className="w-full h-[45vh] min-h-[280px] lg:flex-1 lg:h-auto rounded-lg overflow-hidden border border-border relative order-1">
         <div ref={mapContainer} className="w-full h-full" />
 
         {isCreating && !clickedPoint && (
@@ -774,7 +820,7 @@ export default function GeofenceManager() {
       </div>
 
       {/* Sidebar panel */}
-      <div className="w-80 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+      <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-3 overflow-y-auto max-h-[50vh] lg:max-h-none order-2">
         {/* Create button / form */}
         {!isCreating && !editingGeofenceId ? (
           <Button onClick={() => setIsCreating(true)} className="w-full">

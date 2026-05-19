@@ -1,3 +1,16 @@
+/**
+ * Normalize a raw fuel-level value to a 0–100 percentage.
+ * Traccar devices report fuel either as a fraction (0.0–1.0) or as a
+ * percentage (0–100) depending on the protocol.
+ */
+export const normalizeFuelPct = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (n > 100) return 100;
+  if (n < 1) return Math.round(n * 100);
+  return Math.round(n);
+};
+
 export const mapDeviceData = (devices = [], positions = []) => {
   const positionByDeviceId = new Map(
     positions.map((position) => [position.deviceId, position])
@@ -6,20 +19,6 @@ export const mapDeviceData = (devices = [], positions = []) => {
   const asNumber = (value, fallback = 0) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
-  };
-
-  /**
-   * Normalize a raw fuel-level value to a 0–100 percentage.
-   * Traccar devices report fuel either as a fraction (0.0–1.0) or as a
-   * percentage (0–100) depending on the protocol.  Values < 1 are treated
-   * as fractions and multiplied by 100; values > 100 are clamped to 100.
-   */
-  const normalizeFuelPct = (value) => {
-    const n = asNumber(value);
-    if (n <= 0) return 0;
-    if (n > 100) return 100;
-    if (n < 1) return Math.round(n * 100); // fraction → percent
-    return Math.round(n);                   // already a percent
   };
 
   const asBoolean = (value, fallback = false) => {

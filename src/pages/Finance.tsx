@@ -38,9 +38,9 @@ export default function Finance() {
   }, [fleetData]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Finance</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Finance</h2>
         <p className="text-muted-foreground">
           Live operational cost view derived from your connected fleet telemetry.
         </p>
@@ -125,14 +125,17 @@ export default function Finance() {
                   const fuelLevel = fuel > 0 ? fuel : (Number(item.fuelLevel) || 0);
                   const statusLabel = item.status || "unknown";
                   return (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{item.name || `Device ${item.id}`}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[420px]">
+                    <div
+                      key={item.id}
+                      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{item.name || `Device ${item.id}`}</p>
+                        <p className="text-xs text-muted-foreground truncate">
                           {item.address || "Live location unavailable"}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <Badge variant="outline">{statusLabel}</Badge>
                         <Badge variant="secondary">{speedKmh} km/h</Badge>
                         <Badge variant={fuelLevel < 20 ? "destructive" : "outline"}>

@@ -243,7 +243,7 @@ export default function Trips() {
                     <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-3 bg-background z-50" align="start">
+                <PopoverContent className="w-[min(100vw-2rem,320px)] p-3 bg-background z-50" align="start">
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium">Devices</p>

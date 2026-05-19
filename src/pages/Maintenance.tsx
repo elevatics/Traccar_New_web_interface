@@ -230,17 +230,17 @@ export default function Maintenance() {
           return (
             <Card key={order.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-primary/10 rounded-lg shrink-0">
                       <TypeIcon className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <CardTitle className="text-base">{order.vehicleName}</CardTitle>
-                      <CardDescription>{order.description}</CardDescription>
+                    <div className="min-w-0">
+                      <CardTitle className="text-base truncate">{order.vehicleName}</CardTitle>
+                      <CardDescription className="line-clamp-2">{order.description}</CardDescription>
                     </div>
                   </div>
-                  <Badge className={getPriorityColor(order.priority)}>
+                  <Badge className={`${getPriorityColor(order.priority)} self-start shrink-0`}>
                     {order.priority}
                   </Badge>
                 </div>
@@ -289,9 +289,9 @@ export default function Maintenance() {
           return (
             <Card key={order.id} className="border-primary/50">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-primary/10 rounded-lg shrink-0">
                       <TypeIcon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
@@ -500,7 +500,7 @@ export default function Maintenance() {
           {breakdownOrders.map((order) => (
             <Card key={order.id} className="border-red-200 dark:border-red-900">
               <CardHeader>
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle className="text-base">{order.vehicleName}</CardTitle>
                     <CardDescription>{order.description}</CardDescription>
@@ -679,7 +679,7 @@ export default function Maintenance() {
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-2xl font-bold">Maintenance</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Maintenance</h2>
           
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {/* Quick Actions */}

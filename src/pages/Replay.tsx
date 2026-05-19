@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { getDevices } from '@/services/deviceService';
 import { getRouteReport } from '@/services/tripService';
 import { useToast } from '@/hooks/use-toast';
+import { US_MAP_VIEW } from '@/utils/mapDefaults';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -207,8 +208,8 @@ export default function Replay() {
     mapRef.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [-98.5795, 39.8283], // continental US center
-      zoom: 4,
+      center: US_MAP_VIEW.center,
+      zoom: US_MAP_VIEW.zoom,
     });
 
     // Disable globe projection (v3 default)

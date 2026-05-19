@@ -24,7 +24,6 @@ import {
 import FleetMap from '@/components/FleetMap';
 import Vehicle360View from '@/components/Vehicle360View';
 import GeofenceManager from '@/components/GeofenceManager';
-import { mockVehicles } from '@/data/mockVehicles';
 import { Vehicle } from '@/types/vehicle';
 import { getEvents } from '@/services/eventService';
 import useFleetData from '@/hooks/useFleetData';
@@ -167,11 +166,10 @@ export default function Fleet() {
   );
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 sm:p-6 border-b bg-background">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4">Fleet - Live Map & Status</h2>
-        
-        <Tabs defaultValue="live-map" className="w-full">
+    <div className="p-4 sm:p-6 space-y-4 pb-8">
+      <h2 className="text-xl sm:text-2xl font-bold">Fleet - Live Map & Status</h2>
+
+      <Tabs defaultValue="live-map" className="w-full">
           <TabsList className="w-full overflow-x-auto justify-start sm:grid sm:grid-cols-5">
             <TabsTrigger value="live-map" className="flex items-center gap-2">
               <Map className="h-4 w-4" />
@@ -209,7 +207,7 @@ export default function Fleet() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedVehicle(liveVehicles[0] || mockVehicles[0])}
+                        onClick={() => setSelectedVehicle(liveVehicles[0] ?? null)}
                         disabled={liveVehicles.length === 0 && fleetLoading}
                       >
                         <Eye className="h-4 w-4 mr-2" />
@@ -252,13 +250,14 @@ export default function Fleet() {
                               onSelectVehicle={setSelectedVehicle}
                               onClearSelection={() => setSelectedVehicle(null)}
                               apiToken={MAPBOX_TOKEN}
+                              mapStorageKey="fleet_map_fleet"
                               liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
                               trackedVehicleId={trackingActive && trackedVehicle ? trackedVehicle.id : undefined}
                             />
                           </div>
                           {/* 360 View takes 1/3 */}
                           <div className="col-span-1 h-[50vh] min-h-[320px] xl:h-auto">
-                            <Vehicle360View vehicle={selectedVehicle || liveVehicles[0] || mockVehicles[0]} />
+                            <Vehicle360View vehicle={selectedVehicle || liveVehicles[0] || null} />
                           </div>
                         </>
                       ) : (
@@ -268,6 +267,7 @@ export default function Fleet() {
                           onSelectVehicle={setSelectedVehicle}
                           onClearSelection={() => setSelectedVehicle(null)}
                           apiToken={MAPBOX_TOKEN}
+                          mapStorageKey="fleet_map_fleet"
                           liveRoute={trackingActive ? tripLog.map(p => ({ lat: p.lat, lng: p.lng })) : undefined}
                           trackedVehicleId={trackingActive && trackedVehicle ? trackedVehicle.id : undefined}
                         />
@@ -278,10 +278,10 @@ export default function Fleet() {
                   {/* Live trip tracking panel */}
                   {trackingActive && trackedVehicle && (
                     <div className="border rounded-xl bg-muted/30 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Radio className="h-4 w-4 text-green-500 animate-pulse" />
-                          <span className="font-semibold text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <Radio className="h-4 w-4 text-green-500 animate-pulse shrink-0" />
+                          <span className="font-semibold text-sm truncate">
                             Live Tracking — {trackedVehicle.name}
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -318,10 +318,10 @@ export default function Fleet() {
                       {tripLog.length > 0 && (
                         <div className="max-h-32 overflow-y-auto space-y-1">
                           {[...tripLog].reverse().map((pt, i) => (
-                            <div key={i} className="flex items-center gap-3 text-xs text-muted-foreground px-1">
+                            <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-1">
                               <span className="font-mono w-16 shrink-0">{pt.time}</span>
-                              <span>{pt.speed} km/h</span>
-                              <span className="font-mono">{pt.lat.toFixed(4)}, {pt.lng.toFixed(4)}</span>
+                              <span className="shrink-0">{pt.speed} km/h</span>
+                              <span className="font-mono truncate min-w-0">{pt.lat.toFixed(4)}, {pt.lng.toFixed(4)}</span>
                             </div>
                           ))}
                         </div>
@@ -560,8 +560,7 @@ export default function Fleet() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
+      </Tabs>
     </div>
   );
 }

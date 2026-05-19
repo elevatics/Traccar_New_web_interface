@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { cn } from "@/lib/utils";
+import { US_MAP_VIEW } from "@/utils/mapDefaults";
 
 type TripRouteMapProps = {
   accessToken: string;
@@ -25,8 +26,8 @@ export default function TripRouteMap({ accessToken, coordinates, className }: Tr
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/streets-v12",
-      center: coordinates[0] || [-98.5, 39.8],
-      zoom: coordinates.length >= 2 ? 10 : 4,
+      center: coordinates[0] || US_MAP_VIEW.center,
+      zoom: coordinates.length >= 2 ? 10 : US_MAP_VIEW.zoom,
     });
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 

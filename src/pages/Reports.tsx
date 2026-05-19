@@ -72,7 +72,10 @@ import useFleetData from "@/hooks/useFleetData";
 import { getDrivers } from "@/services/driverService";
 import { getEvents } from "@/services/eventService";
 import { getRouteReport, knotsToKmh } from "@/services/tripService";
+import { normalizeFuelPct } from "@/utils/mapDeviceData";
 import { cn } from "@/lib/utils";
+
+const CSV_EMPTY = "";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -105,8 +108,11 @@ interface RoutePosition {
     totalDistance?: number;
     motion?: boolean;
     fuel?: number;
+    fuelLevel?: number;
     fuelConsumption?: number;
     ignition?: boolean;
+    ignitionOn?: boolean;
+    acc?: boolean;
     rpm?: number;
     obdSpeed?: number;
     commandResult?: string | null;
@@ -201,6 +207,31 @@ function fmtDateTime(iso?: string) {
 
 function attr<T>(pos: RoutePosition, key: string): T | undefined {
   return pos.attributes?.[key] as T | undefined;
+}
+
+function routeFuelPct(pos: RoutePosition): number | undefined {
+  const raw = attr<number>(pos, "fuel") ?? attr<number>(pos, "fuelLevel");
+  if (raw == null || !Number.isFinite(Number(raw))) return undefined;
+  const pct = normalizeFuelPct(Number(raw));
+  return pct > 0 ? pct : undefined;
+}
+
+function routeIgnition(pos: RoutePosition): boolean | undefined {
+  const direct = attr<boolean>(pos, "ignition");
+  if (direct === true || direct === false) return direct;
+  const ignOn = attr<boolean>(pos, "ignitionOn");
+  if (ignOn === true || ignOn === false) return ignOn;
+  const acc = attr<boolean>(pos, "acc");
+  if (acc === true || acc === false) return acc;
+  return undefined;
+}
+
+function fmtDateTimeCsv(iso?: string) {
+  if (!iso) return CSV_EMPTY;
+  const d = new Date(iso);
+  return isNaN(d.getTime())
+    ? CSV_EMPTY
+    : d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
 /** Get display value for a given column key from a route position */
@@ -301,16 +332,16 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
       return v != null ? `${(v / 1000).toFixed(2)} km` : "—";
     }
     case "fuel": {
-      const v = attr<number>(pos, "fuel");
-      return v != null ? `${v.toFixed(1)}%` : "—";
+      const pct = routeFuelPct(pos);
+      return pct != null ? `${pct.toFixed(1)}%` : "—";
     }
     case "fuelConsumption": {
       const v = attr<number>(pos, "fuelConsumption");
       return v != null ? `${v.toFixed(2)} L/100km` : "—";
     }
     case "ignition": {
-      const v = attr<boolean>(pos, "ignition");
-      if (v === undefined || v === null) return "—";
+      const v = routeIgnition(pos);
+      if (v === undefined) return "—";
       return v
         ? <span className="text-green-600 dark:text-green-400 font-medium">ON</span>
         : <span className="text-red-500 font-medium">OFF</span>;
@@ -343,16 +374,65 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
   }
 }
 
-/** Plain-text value for CSV export (no JSX) */
+/** Plain-text value for CSV export (no JSX, ASCII-safe for Excel) */
 function getCsvValue(pos: RoutePosition, key: ColumnKey): string {
   switch (key) {
+    case "latitude":        return pos.latitude?.toFixed(6) ?? CSV_EMPTY;
+    case "longitude":       return pos.longitude?.toFixed(6) ?? CSV_EMPTY;
+    case "speed":           return `${Math.round(knotsToKmh(pos.speed))} km/h`;
+    case "course":          return `${Math.round(pos.course)}`;
+    case "altitude":        return `${Math.round(pos.altitude)}`;
+    case "accuracy":        return `${Math.round(pos.accuracy)}`;
     case "valid":           return pos.valid ? "Yes" : "No";
-    case "ignition":        return attr<boolean>(pos, "ignition") != null ? (attr<boolean>(pos, "ignition") ? "ON" : "OFF") : "—";
-    case "motion":          return attr<boolean>(pos, "motion") != null ? (attr<boolean>(pos, "motion") ? "Moving" : "Stopped") : "—";
+    case "protocol":        return pos.protocol || CSV_EMPTY;
     case "address":         return pos.address || `${pos.latitude.toFixed(6)}, ${pos.longitude.toFixed(6)}`;
+    case "deviceTime":      return fmtDateTimeCsv(pos.deviceTime);
+    case "fixTime":         return fmtDateTimeCsv(pos.fixTime);
+    case "serverTime":      return fmtDateTimeCsv(pos.serverTime);
+    case "fuel": {
+      const pct = routeFuelPct(pos);
+      return pct != null ? `${pct.toFixed(1)}%` : CSV_EMPTY;
+    }
+    case "fuelConsumption": {
+      const v = attr<number>(pos, "fuelConsumption");
+      return v != null ? `${v.toFixed(2)} L/100km` : CSV_EMPTY;
+    }
+    case "ignition": {
+      const v = routeIgnition(pos);
+      return v === undefined ? CSV_EMPTY : v ? "ON" : "OFF";
+    }
+    case "motion": {
+      const v = attr<boolean>(pos, "motion");
+      return v === undefined || v === null ? CSV_EMPTY : v ? "Moving" : "Stopped";
+    }
+    case "distance": {
+      const v = attr<number>(pos, "distance");
+      return v != null ? `${v.toFixed(1)} m` : CSV_EMPTY;
+    }
+    case "totalDistance": {
+      const v = attr<number>(pos, "totalDistance");
+      return v != null ? `${(v / 1000).toFixed(2)} km` : CSV_EMPTY;
+    }
+    case "odometer": {
+      const v = attr<number>(pos, "odometer");
+      return v != null ? `${(v / 1000).toFixed(1)} km` : CSV_EMPTY;
+    }
+    case "tripOdometer": {
+      const v = attr<number>(pos, "tripOdometer");
+      return v != null ? `${(v / 1000).toFixed(2)} km` : CSV_EMPTY;
+    }
+    case "coolantTemp": {
+      const v = attr<number>(pos, "coolantTemp");
+      return v != null ? `${v}` : CSV_EMPTY;
+    }
+    case "geofences": {
+      const ids = attr<number[]>(pos, "geofenceIds");
+      return ids && ids.length > 0 ? ids.join(", ") : CSV_EMPTY;
+    }
     default: {
       const val = getCellValue(pos, key);
-      return typeof val === "string" ? val : "—";
+      if (typeof val !== "string") return CSV_EMPTY;
+      return val === "—" ? CSV_EMPTY : val;
     }
   }
 }
@@ -363,10 +443,11 @@ function exportCsv(positions: RoutePosition[], visibleCols: ColumnKey[]) {
   const rows = positions.map((pos) =>
     orderedCols.map((col) => getCsvValue(pos, col.key))
   );
-  const csv = [header, ...rows]
+  const csvBody = [header, ...rows]
     .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+    .join("\r\n");
+  const csv = `\uFEFF${csvBody}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -1020,6 +1101,7 @@ export default function Reports() {
         );
       case "driver":
         return (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1036,6 +1118,7 @@ export default function Reports() {
               </TableRow>
             </TableBody>
           </Table>
+          </div>
         );
       case "financial":
         return (
@@ -1062,7 +1145,7 @@ export default function Reports() {
               <CardDescription>Select topics to include</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {reportTopics.map(({ id, label, icon: Icon }) => (
                   <div key={id} className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors" onClick={() => toggleTopic(id)}>
                     <Checkbox id={id} checked={selectedTopics.includes(id)} onCheckedChange={() => toggleTopic(id)} />

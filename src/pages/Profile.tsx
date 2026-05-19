@@ -55,9 +55,9 @@ export default function Profile() {
   }, [fleetData]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 pb-8">
       <div>
-        <h2 className="text-2xl font-bold">Profile</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Profile</h2>
         <p className="text-muted-foreground">Your live Traccar account and access overview.</p>
       </div>
 

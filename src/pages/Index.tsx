@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Vehicle, VehicleStatus } from '@/types/vehicle';
-import { mockVehicles } from '@/data/mockVehicles';
 import VehicleList from '@/components/VehicleList';
 import FleetMap from '@/components/FleetMap';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import useFleetData from '@/hooks/useFleetData';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -67,27 +67,53 @@ const Index = () => {
     [fleetData]
   );
 
-  const fallbackVehicles = vehicles.length > 0 ? vehicles : mockVehicles;
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<VehicleStatus | 'all'>('all');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileListOpen, setMobileListOpen] = useState(false);
   const isMobile = useIsMobile();
 
   return (
-    <div className="h-full flex flex-col md:flex-row overflow-hidden">
-        {/* Map area — slightly reduced to give visual breathing room */}
-        <div className={cn('min-w-0 relative', isMobile ? 'h-[50vh]' : 'flex-1')}>
+    <div
+      className={cn(
+        'h-full flex flex-col md:flex-row md:overflow-hidden',
+        isMobile && 'min-h-0 overflow-y-auto'
+      )}
+    >
+        {/* Map area */}
+        <div
+          className={cn(
+            'min-w-0 relative shrink-0',
+            isMobile
+              ? mobileListOpen
+                ? 'h-[45vh] min-h-[240px]'
+                : 'h-[calc(100dvh-3.5rem)] min-h-[320px]'
+              : 'flex-1 min-h-0'
+          )}
+        >
           <FleetMap
-            vehicles={fallbackVehicles}
+            vehicles={vehicles}
             selectedVehicle={selectedVehicle}
             onSelectVehicle={setSelectedVehicle}
             onClearSelection={() => setSelectedVehicle(null)}
             apiToken={MAPBOX_TOKEN}
+            mapStorageKey="fleet_map_dashboard"
           />
+          {isMobile && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="absolute bottom-4 right-4 z-30 shadow-lg gap-1.5"
+              onClick={() => setMobileListOpen((open) => !open)}
+            >
+              <List className="h-4 w-4" />
+              {mobileListOpen ? 'Hide list' : 'Fleet list'}
+            </Button>
+          )}
         </div>
 
         {/* Right sidebar with edge toggle */}
-        <div className="relative flex-shrink-0 md:h-full">
+        <div className="relative flex-shrink-0 md:h-full md:min-h-0">
           {!isMobile && (
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -110,17 +136,19 @@ const Index = () => {
 
           <div
             className={cn(
-              'transition-[width,height] duration-300 ease-in-out overflow-hidden border-border',
+              'transition-[width,height] duration-300 ease-in-out border-border',
               isMobile
-                ? 'w-full h-[50vh] border-t'
+                ? mobileListOpen
+                  ? 'w-full flex-1 min-h-[40vh] border-t overflow-y-auto'
+                  : 'hidden'
                 : sidebarOpen
-                  ? 'w-80 h-full border-l'
-                  : 'w-0 h-full border-l-0'
+                  ? 'w-80 h-full border-l overflow-hidden'
+                  : 'w-0 h-full border-l-0 overflow-hidden'
             )}
           >
-            <div className={cn('h-full', isMobile ? 'w-full' : 'w-80')}>
+            <div className={cn('h-full min-h-0', isMobile ? 'w-full' : 'w-80')}>
               <VehicleList
-                vehicles={fallbackVehicles}
+                vehicles={vehicles}
                 selectedVehicle={selectedVehicle}
                 onSelectVehicle={setSelectedVehicle}
                 filterStatus={filterStatus}

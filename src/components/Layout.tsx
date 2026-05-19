@@ -13,7 +13,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <h1 className="text-sm font-semibold flex-1 truncate sm:text-lg">Fleet Management Portal</h1>
             <NotificationBell />
           </header>
-          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <main className="flex-1 min-h-0 w-full min-w-0 overflow-y-auto overflow-x-hidden">
             {children}
           </main>
         </SidebarInset>

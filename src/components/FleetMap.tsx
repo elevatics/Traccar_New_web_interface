@@ -9,6 +9,7 @@ import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
 import useFleetData from '@/hooks/useFleetData';
 import { useTrackingPrefs } from '@/contexts/TrackingPrefsContext';
+import { US_MAP_VIEW } from '@/utils/mapDefaults';
 
 interface FleetMapProps {
   vehicles: Vehicle[];
@@ -20,6 +21,8 @@ interface FleetMapProps {
   liveRoute?: { lat: number; lng: number }[];
   /** ID of the vehicle currently being tracked — renders as a navigation arrow */
   trackedVehicleId?: string;
+  /** Per-page sessionStorage key so dashboard and fleet maps do not share camera state */
+  mapStorageKey?: string;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -84,12 +87,12 @@ const STATUS_COLORS: Record<string, string> = {
 
 const getStatusColor = (status?: string) => STATUS_COLORS[status || ''] || STATUS_COLORS.unknown;
 
-const FLEET_MAP_VIEW_STORAGE_KEY = 'fleet_map_last_view';
+const DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY = 'fleet_map_last_view';
 
-function readStoredFleetMapView(): { center: [number, number]; zoom: number } | null {
+function readStoredFleetMapView(storageKey: string): { center: [number, number]; zoom: number } | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.sessionStorage.getItem(FLEET_MAP_VIEW_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(storageKey);
     if (!raw) return null;
     const o = JSON.parse(raw) as { center?: unknown; zoom?: unknown };
     if (
@@ -112,14 +115,14 @@ function readStoredFleetMapView(): { center: [number, number]; zoom: number } | 
   return null;
 }
 
-function persistFleetMapView(mapInstance: mapboxgl.Map) {
+function persistFleetMapView(mapInstance: mapboxgl.Map, storageKey: string) {
   const z = mapInstance.getZoom();
   // Avoid persisting the default whole-earth view before fleet data fits the map
   if (z < 4) return;
   try {
     const c = mapInstance.getCenter();
     window.sessionStorage.setItem(
-      FLEET_MAP_VIEW_STORAGE_KEY,
+      storageKey,
       JSON.stringify({ center: [c.lng, c.lat], zoom: z })
     );
   } catch {
@@ -284,7 +287,16 @@ function removePulseRing(markerElement: HTMLDivElement) {
 const LIVE_ROUTE_SOURCE = 'live-trip-route-src';
 const LIVE_ROUTE_LAYER  = 'live-trip-route-line';
 
-const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection, apiToken, liveRoute, trackedVehicleId }: FleetMapProps) => {
+const FleetMap = ({
+  vehicles,
+  selectedVehicle,
+  onSelectVehicle,
+  onClearSelection,
+  apiToken,
+  liveRoute,
+  trackedVehicleId,
+  mapStorageKey = DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY,
+}: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Record<string, MarkerEntry>>({});
@@ -380,17 +392,14 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
 
     ensureTrackedPulseStyle();
 
-    const storedView = readStoredFleetMapView();
-    const US_CENTER: { center: [number, number]; zoom: number } = { center: [-98.5795, 39.8283], zoom: 4 };
-    const bootstrapView =
-      storedView ??
-      approximateViewFromCoords(
-        vehiclesForInitRef.current.map((v) => ({
-          lat: v.location.lat,
-          lng: v.location.lng,
-        }))
-      ) ??
-      US_CENTER;
+    const vehicleBootstrap = approximateViewFromCoords(
+      vehiclesForInitRef.current.map((v) => ({
+        lat: v.location.lat,
+        lng: v.location.lng,
+      }))
+    );
+    const storedView = readStoredFleetMapView(mapStorageKey);
+    const bootstrapView = vehicleBootstrap ?? storedView ?? US_MAP_VIEW;
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
@@ -403,10 +412,13 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
     const schedulePersistView = () => {
       if (persistTimer) clearTimeout(persistTimer);
       persistTimer = setTimeout(() => {
-        if (map.current) persistFleetMapView(map.current);
+        if (map.current) persistFleetMapView(map.current, mapStorageKey);
       }, 500);
     };
     map.current.on('moveend', schedulePersistView);
+    map.current.on('load', () => {
+      requestAnimationFrame(() => map.current?.resize());
+    });
 
     map.current.addControl(
       new mapboxgl.NavigationControl({
@@ -424,7 +436,7 @@ const FleetMap = ({ vehicles, selectedVehicle, onSelectVehicle, onClearSelection
       markers.current = {};
       map.current?.remove();
     };
-  }, [apiToken]);
+  }, [apiToken, mapStorageKey]);
 
   useEffect(() => {
     if (!map.current || !mapContainer.current) return;

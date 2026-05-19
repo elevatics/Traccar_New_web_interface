@@ -286,8 +286,8 @@ export default function UserAccess() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="w-full min-w-0">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 pb-8">
 
           {/* ── Page Header ── */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -296,7 +296,7 @@ export default function UserAccess() {
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">User Access</h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">User Access</h1>
                 <p className="text-sm text-muted-foreground">
                   Manage permissions and device assignments for all users
                 </p>
@@ -325,7 +325,7 @@ export default function UserAccess() {
             <>
               {/* ── Stats Row ── */}
               {!loading && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
                       <Users className="h-4 w-4" />

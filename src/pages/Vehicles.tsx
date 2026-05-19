@@ -16,7 +16,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { 
-  Car, 
+  Car,
+  CarFront,
   Search, 
   ChevronDown, 
   Eye, 
@@ -252,8 +253,8 @@ export default function Vehicles() {
         return (
           <Card key={vehicle.id} className="hover:shadow-xl hover:-translate-y-0.5 transition-all border-border/70">
             <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {vehicle.imageUrl ? (
                       <img
                         src={vehicle.imageUrl}
@@ -264,8 +265,8 @@ export default function Vehicles() {
                         }}
                       />
                     ) : (
-                      <div className="p-2.5 bg-primary/10 rounded-xl">
-                        <Car className="h-6 w-6 text-primary" />
+                      <div className="p-2.5 bg-gradient-to-br from-primary/15 to-primary/5 rounded-xl ring-1 ring-primary/20">
+                        <CarFront className="h-6 w-6 text-primary" />
                       </div>
                     )}
                     <div>
