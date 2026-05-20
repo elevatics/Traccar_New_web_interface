@@ -540,9 +540,7 @@ function RouteReportSection({
       const fetched = raw as RoutePosition[];
       setPositions(fetched);
       setHasLoaded(true);
-      // Jump to last page (most recent records) when data first loads
-      const pages = Math.max(1, Math.ceil(fetched.length / pageSize));
-      setCurrentPage(pages);
+      setCurrentPage(1);
     } catch (err: any) {
       toast({ title: "Failed to load route report", description: err?.message, variant: "destructive" });
     } finally {
@@ -771,7 +769,7 @@ function RouteReportSection({
 
           <CardContent className="p-0 overflow-hidden">
             {/* Table */}
-            <div className="overflow-x-auto w-full">
+            <div className="overflow-x-auto w-full [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">

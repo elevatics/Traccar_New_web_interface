@@ -111,8 +111,6 @@ export default function Trips() {
             name: (d.name && String(d.name).trim()) || `Device ${d.id}`,
           }));
         setDevices(opts);
-        const ids = opts.map((o) => o.id).filter((n) => Number.isFinite(n));
-        if (ids.length) setSelectedDeviceIds(ids);
       } catch {
         toast.error("Could not load devices for trips");
       } finally {
