@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { vpsGet } from "@/lib/vps/vpsApiClient";
 import { motion } from "framer-motion";
 import { Terminal, User, AlertTriangle, RefreshCw, Monitor, ShieldAlert } from "lucide-react";
 
@@ -30,13 +31,13 @@ interface FailedUsernamesData {
 }
 
 async function fetchSshSessions(): Promise<SshSessionsData> {
-  const res = await fetch("/vps-api/ssh-sessions");
+  const res = await vpsGet("/ssh-sessions");
   if (!res.ok) throw new Error("Failed");
   return res.json();
 }
 
 async function fetchFailedUsernames(): Promise<FailedUsernamesData> {
-  const res = await fetch("/vps-api/failed-usernames");
+  const res = await vpsGet("/failed-usernames");
   if (!res.ok) throw new Error("Failed");
   return res.json();
 }

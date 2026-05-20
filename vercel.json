@@ -5,6 +5,10 @@
       "destination": "https://elevaticsiot.com/api/:path*"
     },
     {
+      "source": "/vps-api/:path*",
+      "destination": "http://15.204.117.106:8090/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { vpsGet, vpsPost } from "@/lib/vps/vpsApiClient";
 import { motion } from "framer-motion";
 import {
   Cpu, MemoryStick, HardDrive, Network, Server,
@@ -8,7 +9,7 @@ import {
 import type { VpsSystemInfo } from "@/lib/vps/types";
 
 async function fetchSystemInfo(): Promise<VpsSystemInfo> {
-  const res = await fetch("/vps-api/system");
+  const res = await vpsGet("/system");
   if (!res.ok) throw new Error("Failed to fetch system info");
   return res.json();
 }
@@ -62,7 +63,7 @@ export function VpsSystemPanel() {
     setRebooting(true);
     setRebootMsg(null);
     try {
-      const res = await fetch("/vps-api/reboot", { method: "POST" });
+      const res = await vpsPost("/reboot", {});
       const json = await res.json();
       setRebootMsg(json.message ?? "Reboot scheduled.");
     } catch {

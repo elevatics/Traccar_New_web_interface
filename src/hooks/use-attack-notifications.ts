@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { AlertEvent, RawEvent } from "@/lib/vps/types";
 import type { ToastAlert } from "@/components/vps/attack-toast";
+import { vpsGet, vpsPost } from "@/lib/vps/vpsApiClient";
 
 export type { ToastAlert };
 
-const VPS_BASE = "/vps-api";
 const POLL_INTERVAL_MS = 10_000;
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -33,15 +33,9 @@ function classifyEvent(e: RawEvent): AlertType | null {
 
 async function geoEnrichSingle(ip: string): Promise<{ country: string; countryCode: string; org: string }> {
   try {
-    const res = await fetch(
-      "/vps-api/geo-batch",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{ query: ip }]),
-        signal: AbortSignal.timeout(5000),
-      }
-    );
+    const res = await vpsPost("/geo-batch", [{ query: ip }], {
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) return { country: "Unknown", countryCode: "XX", org: "Unknown" };
     const results = await res.json();
     const r = results[0];
@@ -126,7 +120,7 @@ export function useAttackNotifications() {
     // Seed lastSeenId so we only alert on NEW events going forward
     async function seed() {
       try {
-        const res = await fetch(`${VPS_BASE}/events?limit=1`);
+        const res = await vpsGet("/events?limit=1");
         if (res.ok) {
           const events: RawEvent[] = await res.json();
           if (events.length > 0) lastSeenIdRef.current = events[0].id;
@@ -139,7 +133,7 @@ export function useAttackNotifications() {
     async function poll() {
       if (stopped) return;
       try {
-        const res = await fetch(`${VPS_BASE}/events?limit=50`, {
+        const res = await vpsGet("/events?limit=50", {
           signal: AbortSignal.timeout(8000),
         });
         if (!res.ok) return;

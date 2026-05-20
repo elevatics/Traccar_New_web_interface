@@ -18,6 +18,14 @@ export default defineConfig(({ mode }) => ({
         target: "http://15.204.117.106:8090",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/vps-api/, "/api"),
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            const key = process.env.VITE_VPS_API_KEY;
+            if (key && !proxyReq.getHeader("x-vps-api-key")) {
+              proxyReq.setHeader("x-vps-api-key", key);
+            }
+          });
+        },
       },
     },
   },

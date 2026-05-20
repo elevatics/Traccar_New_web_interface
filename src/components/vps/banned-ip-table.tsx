@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { vpsPost } from "@/lib/vps/vpsApiClient";
 import { motion } from "framer-motion";
 import { Search, Copy, Download, Check, ShieldOff, Loader2 } from "lucide-react";
 import type { EnrichedIP } from "@/lib/vps/types";
@@ -47,11 +48,7 @@ export function BlockedIPTable({ ips }: Props) {
     if (state === "confirming") {
       setUnblockState((s) => ({ ...s, [ip]: "loading" }));
       try {
-        const res = await fetch("/vps-api/unblock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ip }),
-        });
+        const res = await vpsPost("/unblock", { ip });
         const data = await res.json();
         if (res.ok) {
           setUnblockState((s) => ({ ...s, [ip]: "done" }));

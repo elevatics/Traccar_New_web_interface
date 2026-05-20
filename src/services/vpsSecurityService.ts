@@ -1,12 +1,10 @@
 import type { SecurityData, SummaryData, RawEvent, TrendPoint, EnrichedIP, TopIP } from "@/lib/vps/types";
-
-const VPS_BASE = "/vps-api";
-// const VPS_BASE = "http://15.204.117.106:8090"
+import { vpsGet, vpsPost } from "@/lib/vps/vpsApiClient";
 
 export async function fetchVpsSecurityData(): Promise<SecurityData> {
   const [summaryRes, eventsRes] = await Promise.all([
-    fetch(`${VPS_BASE}/summary`),
-    fetch(`${VPS_BASE}/events?limit=2000`),
+    vpsGet("/summary"),
+    vpsGet("/events?limit=2000"),
   ]);
 
   if (!summaryRes.ok) throw new Error(`VPS summary returned ${summaryRes.status}`);
@@ -68,10 +66,7 @@ async function geoEnrichIPs(topIPs: TopIP[]): Promise<EnrichedIP[]> {
   const countMap = Object.fromEntries(topIPs.map((r) => [r.ip, r.count]));
   const queries = topIPs.slice(0, 100).map((r) => ({ query: r.ip }));
   try {
-    const res = await fetch("/vps-api/geo-batch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(queries),
+    const res = await vpsPost("/geo-batch", queries, {
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return [];

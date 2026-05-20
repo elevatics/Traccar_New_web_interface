@@ -67,7 +67,7 @@ export default function VpsMonitor() {
         <div className="text-center">
           <AlertTriangle size={40} className="text-destructive mx-auto mb-3" />
           <p className="text-sm font-medium text-destructive">Failed to connect to VPS API</p>
-          <p className="text-xs mt-1 text-muted-foreground">http://15.204.117.106:8090</p>
+          <p className="text-xs mt-1 text-muted-foreground">Check VPS backend connection and API key.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-4">
             Retry
           </Button>
@@ -159,7 +159,7 @@ export default function VpsMonitor() {
       <footer className="px-6 py-3 border-t bg-card text-center shrink-0">
         <p className="text-xs text-muted-foreground font-mono">
           CYBERSHIELD MONITOR · FAIL2BAN SSHD · LIVE DATA ·{" "}
-          <span className="text-[hsl(142_71%_38%)] font-medium">15.204.117.106:8090</span>
+          <span className="text-[hsl(142_71%_38%)] font-medium">ubuntu@vps-24526f0b</span>
         </p>
       </footer>
     </div>
