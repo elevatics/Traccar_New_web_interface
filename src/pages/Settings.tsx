@@ -67,6 +67,10 @@ export default function Settings() {
 
   const handleUpdatePassword = async () => {
     if (!user) return;
+    if (!currentPassword) {
+      toast.error("Please enter your current password.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match.");
       return;
@@ -75,13 +79,32 @@ export default function Settings() {
       toast.error("Password must be at least 6 characters.");
       return;
     }
+    if (newPassword === currentPassword) {
+      toast.error("New password must be different from the current password.");
+      return;
+    }
     setPasswordSaving(true);
     try {
+      const verifyPayload = new URLSearchParams({
+        email: user.email,
+        password: currentPassword,
+      });
+      try {
+        await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: verifyPayload.toString(),
+          credentials: "include",
+        }).then((res) => {
+          if (!res.ok) throw new Error("wrong_password");
+        });
+      } catch {
+        toast.error("Current password is incorrect.");
+        setPasswordSaving(false);
+        return;
+      }
       const { provider, ...cleanUser } = user;
-      const updatedUser = {
-        ...cleanUser,
-        password: newPassword,
-      };
+      const updatedUser = { ...cleanUser, password: newPassword };
       await traccarPut(`/users/${user.id}`, updatedUser);
       toast.success("Password updated successfully!");
       setCurrentPassword("");
