@@ -34,10 +34,9 @@ const TraccarAuthContext = createContext<TraccarAuthContextValue | undefined>(
 
 const getInitialAuthState = () => {
   if (typeof window === "undefined") return false;
-  return (
-    window.localStorage.getItem(STORAGE_KEY) === "true" &&
-    Boolean(getStoredToken())
-  );
+  const inSession = window.sessionStorage.getItem(STORAGE_KEY) === "true";
+  const inLegacy = window.localStorage.getItem(STORAGE_KEY) === "true";
+  return (inSession || inLegacy) && Boolean(getStoredToken());
 };
 
 export const TraccarAuthProvider = ({
@@ -55,32 +54,41 @@ export const TraccarAuthProvider = ({
 
     saveAuthSession(result.token, result.user);
     setUser(result.user || null);
-    window.localStorage.setItem(AUTH_MODE_KEY, "traccar");
+    window.sessionStorage.setItem(AUTH_MODE_KEY, "traccar");
+    window.localStorage.removeItem(AUTH_MODE_KEY);
     await loginService(email, password);
 
     setIsAuthenticated(true);
-    window.localStorage.setItem(STORAGE_KEY, "true");
+    window.sessionStorage.setItem(STORAGE_KEY, "true");
+    window.localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   const signup = useCallback(async (name: string, email: string, password: string) => {
     const result = await traccarSignup({ name, email, password });
     saveAuthSession(result.token, result.user);
     setUser(result.user || null);
-    window.localStorage.setItem(AUTH_MODE_KEY, "traccar");
+    window.sessionStorage.setItem(AUTH_MODE_KEY, "traccar");
+    window.localStorage.removeItem(AUTH_MODE_KEY);
     await loginService(email, password);
     setIsAuthenticated(true);
-    window.localStorage.setItem(STORAGE_KEY, "true");
+    window.sessionStorage.setItem(STORAGE_KEY, "true");
+    window.localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   const logout = useCallback(async () => {
+    const authMode =
+      window.sessionStorage.getItem(AUTH_MODE_KEY) ??
+      window.localStorage.getItem(AUTH_MODE_KEY);
     try {
-      if (window.localStorage.getItem(AUTH_MODE_KEY) === "traccar") {
+      if (authMode === "traccar") {
         await logoutService();
       }
     } finally {
       clearAuthSession();
       setUser(null);
       setIsAuthenticated(false);
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.removeItem(AUTH_MODE_KEY);
       window.localStorage.removeItem(STORAGE_KEY);
       window.localStorage.removeItem(AUTH_MODE_KEY);
     }
@@ -97,12 +105,14 @@ export const TraccarAuthProvider = ({
         if (!result?.user) throw new Error("Invalid session");
         setUser(result.user);
         setIsAuthenticated(true);
-        window.localStorage.setItem(STORAGE_KEY, "true");
+        window.sessionStorage.setItem(STORAGE_KEY, "true");
+        window.localStorage.removeItem(STORAGE_KEY);
       })
       .catch(() => {
         clearAuthSession();
         setUser(null);
         setIsAuthenticated(false);
+        window.sessionStorage.removeItem(STORAGE_KEY);
         window.localStorage.removeItem(STORAGE_KEY);
       });
   }, []);

@@ -42,27 +42,44 @@ const request = async (path: string, init: RequestInit = {}) => {
 
 export const saveAuthSession = (token: string, user: AuthUser) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(AUTH_TOKEN_KEY, token);
-  window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  window.sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
+  window.localStorage.removeItem(AUTH_USER_KEY);
 };
 
 export const clearAuthSession = () => {
   if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  window.sessionStorage.removeItem(AUTH_USER_KEY);
   window.localStorage.removeItem(AUTH_TOKEN_KEY);
   window.localStorage.removeItem(AUTH_USER_KEY);
 };
 
 export const getStoredToken = () => {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  const sessionToken = window.sessionStorage.getItem(AUTH_TOKEN_KEY);
+  if (sessionToken) return sessionToken;
+  const legacyToken = window.localStorage.getItem(AUTH_TOKEN_KEY);
+  if (legacyToken) {
+    window.sessionStorage.setItem(AUTH_TOKEN_KEY, legacyToken);
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    return legacyToken;
+  }
+  return null;
 };
 
 export const getStoredUser = (): AuthUser | null => {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(AUTH_USER_KEY);
+  const raw =
+    window.sessionStorage.getItem(AUTH_USER_KEY) ??
+    window.localStorage.getItem(AUTH_USER_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const user = JSON.parse(raw);
+    window.sessionStorage.setItem(AUTH_USER_KEY, raw);
+    window.localStorage.removeItem(AUTH_USER_KEY);
+    return user;
   } catch {
     return null;
   }

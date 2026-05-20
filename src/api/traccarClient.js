@@ -12,24 +12,19 @@ const TRACCAR_BASIC_AUTH_KEY = "traccar_basic_auth";
 const traccarBaseUrl = import.meta.env.VITE_TRACCAR_API_BASE_URL || "/api";
 
 const getStoredBasicAuth = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.localStorage.getItem(TRACCAR_BASIC_AUTH_KEY);
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(TRACCAR_BASIC_AUTH_KEY);
 };
 
 export const setTraccarBasicAuth = (username, password) => {
-  if (typeof window === "undefined") {
-    return;
-  }
+  if (typeof window === "undefined") return;
   const encoded = window.btoa(`${username}:${password}`);
-  window.localStorage.setItem(TRACCAR_BASIC_AUTH_KEY, encoded);
+  window.sessionStorage.setItem(TRACCAR_BASIC_AUTH_KEY, encoded);
 };
 
 export const clearTraccarBasicAuth = () => {
-  if (typeof window === "undefined") {
-    return;
-  }
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(TRACCAR_BASIC_AUTH_KEY);
   window.localStorage.removeItem(TRACCAR_BASIC_AUTH_KEY);
 };
 
@@ -67,25 +62,20 @@ traccarClient.interceptors.request.use(
 
 traccarClient.interceptors.response.use(
   (response) => {
-    const method = String(response.config?.method || "GET").toUpperCase();
-    const url = `${response.config?.baseURL || ""}${response.config?.url || ""}`;
-    // console.info("[Traccar API][Response]", {
-    //   method,
-    //   url,
-    //   status: response.status,
-    //   statusText: response.statusText,
-    //   hasData:
-    //     Array.isArray(response.data) || typeof response.data === "object"
-    //       ? true
-    //       : Boolean(response.data),
-    //   dataCount: Array.isArray(response.data)
-    //     ? response.data.length
-    //     : undefined,
-    //   data: response.data,
-    // });
     return response;
   },
   (error) => {
+    if (error?.response?.status === 401) {
+      clearTraccarBasicAuth();
+      window.localStorage.removeItem("backend_auth_token");
+      window.localStorage.removeItem("backend_auth_user");
+      window.sessionStorage.removeItem("backend_auth_token");
+      window.sessionStorage.removeItem("backend_auth_user");
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
+    }
     const config = error?.config || {};
     const method = String(config.method || "GET").toUpperCase();
     const url = `${config.baseURL || ""}${config.url || ""}`;

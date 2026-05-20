@@ -5,11 +5,13 @@ import {
 } from "../api/traccarRequest";
 import {
   clearTraccarBasicAuth,
-  setTraccarBasicAuth,
 } from "../api/traccarClient";
 
 export const login = async (email, password) => {
   // Traccar session endpoint expects form-style payload for cookie auth.
+  // withCredentials:true on the axios client ensures the httpOnly session
+  // cookie returned by Traccar is stored and sent automatically on all
+  // subsequent requests — no need to persist the password anywhere.
   const payload = new URLSearchParams({
     email,
     password,
@@ -21,8 +23,6 @@ export const login = async (email, password) => {
       },
     },
   });
-  setTraccarBasicAuth(email, password);
-
   return session;
 };
 
