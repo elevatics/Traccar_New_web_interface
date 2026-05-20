@@ -769,13 +769,13 @@ function RouteReportSection({
             </div>
           </CardHeader>
 
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-hidden">
             {/* Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="text-xs w-12 text-center sticky left-0 bg-muted/40">#</TableHead>
+                    <TableHead className="text-xs w-12 text-center left-0 bg-muted/40">Sr.</TableHead>
                     {ALL_COLUMNS.filter((c) => visibleCols.includes(c.key)).map((col) => (
                       <TableHead key={col.key} className="text-xs whitespace-nowrap font-semibold">
                         {col.label}
@@ -792,7 +792,7 @@ function RouteReportSection({
                         idx % 2 === 1 ? "bg-muted/20" : ""
                       )}
                     >
-                      <TableCell className="text-center text-muted-foreground font-mono sticky left-0 bg-inherit">
+                      <TableCell className="text-center text-muted-foreground font-mono left-0 bg-inherit">
                         {pageStart + idx + 1}
                       </TableCell>
                       {ALL_COLUMNS.filter((c) => visibleCols.includes(c.key)).map((col) => (
@@ -1189,7 +1189,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 overflow-x-hidden min-w-0">
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

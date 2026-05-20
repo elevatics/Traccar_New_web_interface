@@ -5,9 +5,9 @@ import NotificationBell from "@/components/NotificationBell";
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full overflow-x-hidden">
         <AppSidebar />
-        <SidebarInset className="flex flex-col h-screen">
+        <SidebarInset className="flex flex-col h-screen min-w-0 overflow-x-hidden">
           <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-3 sm:gap-4 sm:px-4 shrink-0">
             <SidebarTrigger />
             <h1 className="text-sm font-semibold flex-1 truncate sm:text-lg">Fleet Management Portal</h1>
