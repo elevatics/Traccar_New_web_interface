@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Vehicle, VehicleStatus } from '@/types/vehicle';
 import VehicleList from '@/components/VehicleList';
 import FleetMap from '@/components/FleetMap';
-import { ChevronLeft, ChevronRight, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Radio, Navigation2, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import useFleetData from '@/hooks/useFleetData';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
+
+/** Maximum number of historical positions kept per vehicle for the tail trail */
+const MAX_TAIL_POINTS = 120;
 
 const Index = () => {
   const { fleetData } = useFleetData();
@@ -73,6 +76,47 @@ const Index = () => {
   const [mobileListOpen, setMobileListOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  // ── Per-vehicle position history for tail visualization ─────────────────────
+  // Stored in a ref (accumulator) — updated on each poll cycle
+  const positionHistoryRef = useRef<Record<string, { lat: number; lng: number }[]>>({});
+
+  useEffect(() => {
+    vehicles.forEach((v) => {
+      const { lat, lng } = v.location;
+      if (lat === 0 && lng === 0) return;
+      const history = positionHistoryRef.current[v.id] ?? [];
+      const last = history[history.length - 1];
+      if (!last || last.lat !== lat || last.lng !== lng) {
+        positionHistoryRef.current[v.id] = [
+          ...history,
+          { lat, lng },
+        ].slice(-MAX_TAIL_POINTS);
+      }
+    });
+  }, [vehicles]);
+
+  // Tail route for the currently selected vehicle (min 2 points to draw)
+  const liveRoute = useMemo(() => {
+    if (!selectedVehicle) return undefined;
+    const hist = positionHistoryRef.current[selectedVehicle.id];
+    return hist && hist.length >= 2 ? hist : undefined;
+    // Re-compute whenever the selected vehicle changes or vehicles poll updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVehicle, vehicles]);
+
+  // Keep selectedVehicle in sync with latest poll data so speed/position stay current
+  useEffect(() => {
+    if (!selectedVehicle) return;
+    const latest = vehicles.find((v) => v.id === selectedVehicle.id);
+    if (latest && (
+      latest.location.lat !== selectedVehicle.location.lat ||
+      latest.location.lng !== selectedVehicle.location.lng ||
+      latest.speed !== selectedVehicle.speed
+    )) {
+      setSelectedVehicle(latest);
+    }
+  }, [vehicles, selectedVehicle]);
+
   return (
     <div
       className={cn(
@@ -98,7 +142,37 @@ const Index = () => {
             onClearSelection={() => setSelectedVehicle(null)}
             apiToken={MAPBOX_TOKEN}
             mapStorageKey="fleet_map_dashboard"
+            liveRoute={liveRoute}
+            trackedVehicleId={selectedVehicle?.id}
+            followTracked={!!selectedVehicle}
           />
+
+          {/* Live tracking info strip — shown when a vehicle is selected and moving */}
+          {selectedVehicle && (
+            <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border rounded-xl px-3 py-2 shadow-lg text-xs max-w-[calc(100%-2rem)]">
+              <Radio className="h-3.5 w-3.5 text-blue-500 animate-pulse shrink-0" />
+              <span className="font-semibold truncate max-w-[110px]">{selectedVehicle.name}</span>
+              <span className="text-muted-foreground shrink-0">•</span>
+              <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-mono shrink-0">
+                {selectedVehicle.motion && selectedVehicle.speed > 0.5
+                  ? `${Math.round(selectedVehicle.speed * 1.852)} km/h`
+                  : '0 km/h'}
+              </span>
+              <span className="text-muted-foreground shrink-0">•</span>
+              <Navigation2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-mono text-muted-foreground truncate">
+                {selectedVehicle.location.lat.toFixed(5)}, {selectedVehicle.location.lng.toFixed(5)}
+              </span>
+              {liveRoute && (
+                <>
+                  <span className="text-muted-foreground shrink-0">•</span>
+                  <span className="text-blue-500 font-medium shrink-0">{liveRoute.length} pts</span>
+                </>
+              )}
+            </div>
+          )}
+
           {isMobile && (
             <Button
               size="sm"

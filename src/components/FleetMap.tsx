@@ -23,6 +23,8 @@ interface FleetMapProps {
   trackedVehicleId?: string;
   /** Per-page sessionStorage key so dashboard and fleet maps do not share camera state */
   mapStorageKey?: string;
+  /** When true, the map continuously pans to follow the tracked vehicle on each data update */
+  followTracked?: boolean;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -296,6 +298,7 @@ const FleetMap = ({
   liveRoute,
   trackedVehicleId,
   mapStorageKey = DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY,
+  followTracked = false,
 }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -792,31 +795,25 @@ const FleetMap = ({
         (map.current.getSource(LIVE_ROUTE_SOURCE) as mapboxgl.GeoJSONSource).setData(geojsonData);
       } else {
         map.current.addSource(LIVE_ROUTE_SOURCE, { type: 'geojson', data: geojsonData });
+        // Glow layer below the main line (matches Replay section style)
+        map.current.addLayer({
+          id: LIVE_ROUTE_LAYER + '-glow',
+          type: 'line',
+          source: LIVE_ROUTE_SOURCE,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#93c5fd', 'line-width': 14, 'line-opacity': 0.22 },
+        });
         map.current.addLayer({
           id: LIVE_ROUTE_LAYER,
           type: 'line',
           source: LIVE_ROUTE_SOURCE,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': '#10b981',
-            'line-width': 4,
-            'line-opacity': 0.85,
-            'line-dasharray': [1, 0],
+            'line-color': '#2563eb',
+            'line-width': 4.5,
+            'line-opacity': 0.92,
           },
         });
-        // Add glow effect
-        if (!map.current.getLayer(LIVE_ROUTE_LAYER + '-glow')) {
-          map.current.addLayer(
-            {
-              id: LIVE_ROUTE_LAYER + '-glow',
-              type: 'line',
-              source: LIVE_ROUTE_SOURCE,
-              layout: { 'line-join': 'round', 'line-cap': 'round' },
-              paint: { 'line-color': '#10b981', 'line-width': 10, 'line-opacity': 0.2 },
-            },
-            LIVE_ROUTE_LAYER
-          );
-        }
       }
     };
 
@@ -826,6 +823,17 @@ const FleetMap = ({
       map.current.once('load', applyRoute);
     }
   }, [liveRoute]);
+
+  // Auto-follow tracked vehicle: pan map to its latest position on every data update
+  useEffect(() => {
+    if (!followTracked || !trackedVehicleId || !map.current) return;
+    const tracked = (fleetData as FleetPoint[]).find((v) => String(v.id) === trackedVehicleId);
+    if (!tracked || tracked.lat === 0 || tracked.lng === 0) return;
+    map.current.easeTo({
+      center: [tracked.lng, tracked.lat],
+      duration: 800,
+    });
+  }, [fleetData, trackedVehicleId, followTracked]);
 
   return (
     <div className="relative h-full w-full fleet-map-root">
