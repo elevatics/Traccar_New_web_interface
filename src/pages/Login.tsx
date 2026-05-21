@@ -1,12 +1,43 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTraccarAuth } from "@/contexts/TraccarAuthContext";
-import { Eye, EyeOff, Mail, Lock, User, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { requestPasswordReset } from "@/services/smtpService";
+
+const ATTEMPT_KEY = "login_failed_attempts";
+const LOCKOUT_UNTIL_KEY = "login_lockout_until";
+const MAX_ATTEMPTS = 5;
+const MAX_LOCKOUT_SECONDS = 30;
+
+function getLockoutSeconds(attempts: number): number {
+  if (attempts < 1) return 0;
+  return Math.min(Math.pow(2, attempts - 1), MAX_LOCKOUT_SECONDS);
+}
+
+function getStoredAttempts(): number {
+  return parseInt(sessionStorage.getItem(ATTEMPT_KEY) ?? "0", 10);
+}
+
+function getStoredLockoutUntil(): number {
+  return parseInt(sessionStorage.getItem(LOCKOUT_UNTIL_KEY) ?? "0", 10);
+}
+
+function recordFailedAttempt(): number {
+  const next = getStoredAttempts() + 1;
+  sessionStorage.setItem(ATTEMPT_KEY, String(next));
+  const lockoutMs = getLockoutSeconds(next) * 1000;
+  sessionStorage.setItem(LOCKOUT_UNTIL_KEY, String(Date.now() + lockoutMs));
+  return next;
+}
+
+function clearAttempts(): void {
+  sessionStorage.removeItem(ATTEMPT_KEY);
+  sessionStorage.removeItem(LOCKOUT_UNTIL_KEY);
+}
 
 type LoginMode = "signin" | "signup" | "forgot" | "forgot-sent";
 
@@ -22,6 +53,28 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; name?: string }>({});
+  const [failedAttempts, setFailedAttempts] = useState(getStoredAttempts);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(() => {
+    const until = getStoredLockoutUntil();
+    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  });
+  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (lockoutSecondsLeft <= 0) return;
+    lockoutTimerRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((getStoredLockoutUntil() - Date.now()) / 1000));
+      setLockoutSecondsLeft(remaining);
+      if (remaining <= 0 && lockoutTimerRef.current) {
+        clearInterval(lockoutTimerRef.current);
+      }
+    }, 500);
+    return () => {
+      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current);
+    };
+  }, [lockoutSecondsLeft > 0]);
+
+  const isLockedOut = lockoutSecondsLeft > 0;
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -53,6 +106,7 @@ export default function Login() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (isLockedOut) return;
     if (!validate()) return;
     try {
       setSubmitting(true);
@@ -62,12 +116,21 @@ export default function Login() {
       } else {
         await login(email, password);
       }
+      clearAttempts();
+      setFailedAttempts(0);
+      setLockoutSecondsLeft(0);
       navigate("/", { replace: true });
     } catch (err: any) {
+      const next = recordFailedAttempt();
+      setFailedAttempts(next);
+      const secs = Math.max(0, Math.ceil((getStoredLockoutUntil() - Date.now()) / 1000));
+      setLockoutSecondsLeft(secs);
       if (err?.response?.status === 401) {
         setError("Invalid credentials. Please check your username and password.");
       } else if (err?.response?.status === 409) {
         setError("Email already exists. Please sign in instead.");
+      } else if (err?.response?.status === 429) {
+        setError("Too many attempts. Please wait before trying again.");
       } else {
         setError(err?.message || "Login failed. Please try again.");
       }
@@ -401,15 +464,29 @@ export default function Login() {
               </div>
             )}
 
+            {failedAttempts >= 3 && !isLockedOut && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
+                <ShieldAlert className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {MAX_ATTEMPTS - failedAttempts} attempt{MAX_ATTEMPTS - failedAttempts !== 1 ? "s" : ""} remaining before temporary lockout.
+                </p>
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full h-10 font-semibold text-sm rounded-xl mt-1"
-              disabled={submitting}
+              disabled={submitting || isLockedOut}
             >
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   {mode === "signup" ? "Creating account…" : "Signing in…"}
+                </>
+              ) : isLockedOut ? (
+                <>
+                  <ShieldAlert className="h-4 w-4 mr-2" />
+                  Try again in {lockoutSecondsLeft}s
                 </>
               ) : (
                 mode === "signup" ? "Create account" : "Sign in"
