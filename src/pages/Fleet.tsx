@@ -37,6 +37,7 @@ import Vehicle360View from '@/components/Vehicle360View';
 import GeofenceManager from '@/components/GeofenceManager';
 import { Vehicle } from '@/types/vehicle';
 import { getEvents } from '@/services/eventService';
+import { getDevicePosition } from '@/services/positionService';
 import useFleetData from '@/hooks/useFleetData';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -64,6 +65,15 @@ export default function Fleet() {
   const [logExpanded, setLogExpanded] = useState(false);
   /** Fullscreen map toggle for mobile */
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  /**
+   * Real-time position from the 1-second fast poll.
+   * Passed to FleetMap so the tracked marker moves every second.
+   */
+  const [liveTrackedPosition, setLiveTrackedPosition] = useState<{
+    lat: number; lng: number; course: number;
+  } | null>(null);
+  /** Ref so the fast-poll closure always sees the latest deviceId without restarts */
+  const trackedDeviceIdRef = useRef<number | null>(null);
 
   const { fleetData, loading: fleetLoading, error: fleetError } = useFleetData();
 
@@ -121,28 +131,77 @@ export default function Fleet() {
     [fleetData]
   );
 
-  // ── Live trip tracking — append position to log every poll cycle ─────────────
+  // ── Keep device-id ref in sync (no effect restart on every position update) ──
   useEffect(() => {
-    if (!trackingActive || !trackedVehicle) return;
-    const current = liveVehicles.find((v) => v.id === trackedVehicle.id);
-    if (!current) return;
+    trackedDeviceIdRef.current = trackedVehicle?.deviceId ?? null;
+  }, [trackedVehicle]);
 
-    const entry = {
-      time: new Date().toLocaleTimeString(),
-      lat: current.location.lat,
-      lng: current.location.lng,
-      speed: Math.round(current.speed * 1.852),
-    };
-    // Always record position changes (not just when moving) so we capture stops too
-    const prev = tripLogRef.current;
-    const last = prev[prev.length - 1];
-    if (!last || last.lat !== entry.lat || last.lng !== entry.lng) {
-      const next = [...prev, entry].slice(-MAX_WAYPOINTS);
-      tripLogRef.current = next;
-      setTripLog(next);
-      setTrackedVehicle(current);
+  // ── 1-second fast position poll for the tracked vehicle ───────────────────────
+  // This replaces the old 5-second poll so the trip log and map marker update
+  // immediately whenever the GPS device sends a new fix to Traccar.
+  useEffect(() => {
+    if (!trackingActive) {
+      setLiveTrackedPosition(null);
+      return;
     }
-  }, [liveVehicles, trackingActive, trackedVehicle]);
+
+    let running = true;
+
+    const poll = async () => {
+      const deviceId = trackedDeviceIdRef.current;
+      if (!deviceId || !running) return;
+
+      const pos = await getDevicePosition(deviceId);
+      if (!running || !pos) return;
+
+      const lat = Number(pos.latitude);
+      const lng = Number(pos.longitude);
+      const speed = Number(pos.speed);
+      const course = Number(pos.course);
+
+      if (lat === 0 && lng === 0) return;
+
+      // Push live position to FleetMap for instant marker update
+      setLiveTrackedPosition({ lat, lng, course });
+
+      // Update the tracking panel telemetry
+      setTrackedVehicle((prev) => {
+        if (!prev) return prev;
+        if (prev.location.lat === lat && prev.location.lng === lng) return prev;
+        return {
+          ...prev,
+          location: { ...prev.location, lat, lng },
+          speed,
+          course,
+        };
+      });
+
+      // Append waypoint to trip log only when position actually changed
+      const entry = {
+        time: new Date().toLocaleTimeString(),
+        lat,
+        lng,
+        speed: Math.round(speed * 1.852),
+      };
+      const prev = tripLogRef.current;
+      const last = prev[prev.length - 1];
+      if (!last || last.lat !== lat || last.lng !== lng) {
+        const next = [...prev, entry].slice(-MAX_WAYPOINTS);
+        tripLogRef.current = next;
+        setTripLog(next);
+      }
+    };
+
+    poll(); // immediate first fetch
+    const id = setInterval(poll, 1000);
+
+    return () => {
+      running = false;
+      clearInterval(id);
+      setLiveTrackedPosition(null);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackingActive]); // only restart when tracking starts/stops
 
   // ── Switch tracked vehicle when selector changes while tracking is active ────
   useEffect(() => {
@@ -175,6 +234,7 @@ export default function Fleet() {
 
   const handleStopTracking = () => {
     setTrackingActive(false);
+    setLiveTrackedPosition(null);
     setMapFullscreen(false);
   };
 
@@ -225,6 +285,7 @@ export default function Fleet() {
     liveRoute,
     trackedVehicleId: trackingActive && trackedVehicle ? trackedVehicle.id : undefined,
     followTracked: trackingActive,
+    trackedVehiclePosition: trackingActive ? liveTrackedPosition : null,
   };
 
   // ── Compact tracking overlay (used inside fullscreen map on mobile) ──────────

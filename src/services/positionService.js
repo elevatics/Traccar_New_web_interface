@@ -98,3 +98,20 @@ export const getPositions = async () => {
 
   return enrichMissingAddresses(positions);
 };
+
+/**
+ * Fetch the latest position for a single device — intentionally skips
+ * reverse geocoding so it completes in ~100 ms for real-time tracking.
+ */
+export const getDevicePosition = async (deviceId) => {
+  try {
+    const positions = await traccarGetCollection({
+      url: "/positions",
+      params: { deviceId },
+      normalize: normalizePosition,
+    });
+    return positions[0] ?? null;
+  } catch {
+    return null;
+  }
+};

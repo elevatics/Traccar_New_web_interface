@@ -25,6 +25,12 @@ interface FleetMapProps {
   mapStorageKey?: string;
   /** When true, the map continuously pans to follow the tracked vehicle on each data update */
   followTracked?: boolean;
+  /**
+   * Real-time position override for the tracked vehicle.
+   * Supplied by a 1-second fast-poll in Fleet.tsx so the marker and the map
+   * pan update at 1 s instead of waiting for the 2 s general poll.
+   */
+  trackedVehiclePosition?: { lat: number; lng: number; course: number } | null;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -299,6 +305,7 @@ const FleetMap = ({
   trackedVehicleId,
   mapStorageKey = DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY,
   followTracked = false,
+  trackedVehiclePosition = null,
 }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -824,16 +831,47 @@ const FleetMap = ({
     }
   }, [liveRoute]);
 
-  // Auto-follow tracked vehicle: pan map to its latest position on every data update
+  // ── Fast tracked-vehicle position update (1 s cadence from Fleet.tsx) ───────
+  // Directly moves the marker and pans the map without waiting for the general
+  // fleetData poll — gives the "real-time" feel the user expects.
+  useEffect(() => {
+    if (!trackedVehiclePosition || !trackedVehicleId) return;
+    const { lat, lng, course } = trackedVehiclePosition;
+    if (lat === 0 && lng === 0) return;
+
+    // Move the marker directly
+    const entry = markers.current[trackedVehicleId];
+    if (entry) {
+      if (entry.lastLat !== lat || entry.lastLng !== lng) {
+        entry.marker.setLngLat([lng, lat]);
+        entry.lastLat = lat;
+        entry.lastLng = lng;
+      }
+      if (course !== entry.lastCourse) {
+        const svg = entry.innerElement.querySelector('svg') as HTMLElement | null;
+        if (svg) svg.style.transform = `rotate(${course}deg)`;
+        entry.lastCourse = course;
+      }
+    }
+
+    // Pan map if followTracked
+    if (followTracked && map.current) {
+      map.current.easeTo({ center: [lng, lat], duration: 600 });
+    }
+  }, [trackedVehiclePosition, trackedVehicleId, followTracked]);
+
+  // Auto-follow tracked vehicle via general fleetData poll (Dashboard path)
   useEffect(() => {
     if (!followTracked || !trackedVehicleId || !map.current) return;
+    // Skip if the fast-position path is active (avoid double-pan)
+    if (trackedVehiclePosition) return;
     const tracked = (fleetData as FleetPoint[]).find((v) => String(v.id) === trackedVehicleId);
     if (!tracked || tracked.lat === 0 || tracked.lng === 0) return;
     map.current.easeTo({
       center: [tracked.lng, tracked.lat],
       duration: 800,
     });
-  }, [fleetData, trackedVehicleId, followTracked]);
+  }, [fleetData, trackedVehicleId, followTracked, trackedVehiclePosition]);
 
   return (
     <div className="relative h-full w-full fleet-map-root">

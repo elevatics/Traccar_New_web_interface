@@ -4,7 +4,9 @@ import { getPositions } from "../services/positionService";
 import { mapDeviceData } from "../utils/mapDeviceData";
 import { fetchLastFuelByDeviceIds } from "../services/lastFuelService";
 
-const POLLING_INTERVAL_MS = 5000;
+/** Minimum gap between the end of one poll and the start of the next.
+ *  Intentionally shorter than before so position updates feel near-real-time. */
+const POLLING_INTERVAL_MS = 2000;
 
 const isSameFleetData = (previous, next) => {
   if (previous.length !== next.length) {
@@ -102,21 +104,25 @@ export const useFleetData = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId = null;
 
-    const loadData = async () => {
-      if (!isMounted) {
-        return;
-      }
-
-      await fetchFleetData();
+    // Sequential polling: the next request only fires AFTER the previous one
+    // finishes, so requests never pile up even when the server is slow.
+    const scheduleNext = () => {
+      if (!isMounted) return;
+      timeoutId = setTimeout(async () => {
+        if (!isMounted) return;
+        await fetchFleetData();
+        scheduleNext();
+      }, POLLING_INTERVAL_MS);
     };
 
-    loadData();
-    const intervalId = setInterval(loadData, POLLING_INTERVAL_MS);
+    // First load immediately, then keep chaining
+    fetchFleetData().then(() => { if (isMounted) scheduleNext(); });
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [fetchFleetData]);
 
