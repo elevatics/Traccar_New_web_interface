@@ -104,6 +104,21 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVehicle, vehicles]);
 
+  // Tails for ALL online+moving vehicles (shown even without selection)
+  const allVehicleTails = useMemo(() => {
+    const tails: Record<string, { lat: number; lng: number }[]> = {};
+    vehicles.forEach((v) => {
+      if ((v.status === 'online' || v.status === 'idle') && v.motion) {
+        const hist = positionHistoryRef.current[v.id];
+        if (hist && hist.length >= 2) {
+          tails[v.id] = hist;
+        }
+      }
+    });
+    return Object.keys(tails).length > 0 ? tails : undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles]);
+
   // Keep selectedVehicle in sync with latest poll data so speed/position stay current
   useEffect(() => {
     if (!selectedVehicle) return;
@@ -145,6 +160,7 @@ const Index = () => {
             liveRoute={liveRoute}
             trackedVehicleId={selectedVehicle?.id}
             followTracked={!!selectedVehicle}
+            allVehicleTails={allVehicleTails}
           />
 
           {/* Live tracking info strip — shown when a vehicle is selected and moving */}

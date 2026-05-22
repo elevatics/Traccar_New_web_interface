@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import mapboxgl from 'mapbox-gl';
 import { createPortal } from 'react-dom';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
@@ -192,7 +193,7 @@ function ChatUI({
                       </div>
                     ) : null}
                     {msg.artifacts && msg.artifacts.length > 0 && (
-                      <ArtifactTabs artifacts={msg.artifacts} isExpanded={isExpanded} />
+                      <ArtifactTabs artifacts={msg.artifacts} isExpanded={isExpanded} vehicle={vehicle} />
                     )}
                   </div>
                 ) : (
@@ -559,7 +560,7 @@ function containsStreetAddress(text: string) {
 
 // ─── ArtifactTabs ─────────────────────────────────────────────────────────────
 
-function ArtifactTabs({ artifacts, isExpanded }: { artifacts: ChatArtifact[]; isExpanded: boolean }) {
+function ArtifactTabs({ artifacts, isExpanded, vehicle }: { artifacts: ChatArtifact[]; isExpanded: boolean; vehicle: Vehicle }) {
   const combined = useMemo(() => {
     const result: { csv?: string; html?: string; plotlyJsonList: string[] } = { plotlyJsonList: [] };
     for (const artifact of artifacts) {
@@ -575,12 +576,15 @@ function ArtifactTabs({ artifacts, isExpanded }: { artifacts: ChatArtifact[]; is
   const hasHtml = Boolean(combined.html);
   const htmlIsMap = combined.html ? isMapHtml(combined.html) : false;
   const multiChart = combined.plotlyJsonList.length > 1;
+  // Detect if ALL plotly figures are maps (so we can label the tab correctly)
+  const allPlotlyAreMaps = hasChart && combined.plotlyJsonList.every(isPlotlyMapFigure);
+  const anyPlotlyIsMap = hasChart && combined.plotlyJsonList.some(isPlotlyMapFigure);
 
   const tabs: Array<{ key: 'table' | 'chart' | 'html'; label: string }> = [];
   if (hasTable) tabs.push({ key: 'table', label: 'Table' });
   if (hasChart) tabs.push({
     key: 'chart',
-    label: multiChart ? `Charts (${combined.plotlyJsonList.length})` : 'Chart',
+    label: allPlotlyAreMaps ? '🗺 Map' : anyPlotlyIsMap ? '🗺 Chart' : multiChart ? `Charts (${combined.plotlyJsonList.length})` : 'Chart',
   });
   if (hasHtml) tabs.push({ key: 'html', label: htmlIsMap ? '🗺 Map' : 'HTML' });
 
@@ -621,27 +625,459 @@ function ArtifactTabs({ artifacts, isExpanded }: { artifacts: ChatArtifact[]; is
                     Chart {idx + 1} of {combined.plotlyJsonList.length}
                   </span>
                 </div>
-                <PlotlyArtifact plotlyJson={pj} isExpanded={isExpanded} />
+                <PlotlyArtifact plotlyJson={pj} isExpanded={isExpanded} vehicle={vehicle} />
               </div>
             ))}
           </div>
         ) : (
           // Single chart
-          <PlotlyArtifact plotlyJson={combined.plotlyJsonList[0]} isExpanded={isExpanded} />
+          <PlotlyArtifact plotlyJson={combined.plotlyJsonList[0]} isExpanded={isExpanded} vehicle={vehicle} />
         )}
       </TabsContent>
 
       <TabsContent value="html" className="m-0">
-        {combined.html && <HtmlArtifact html={combined.html} isMap={htmlIsMap} isExpanded={isExpanded} />}
+        {combined.html && <HtmlArtifact html={combined.html} isMap={htmlIsMap} isExpanded={isExpanded} vehicle={vehicle} />}
       </TabsContent>
     </Tabs>
   );
 }
 
+// ─── Plotly map-type detection and coord extraction ─────────────────────────
+
+const PLOTLY_MAP_TYPES = new Set([
+  'scattermapbox', 'scattergeo', 'choropleth', 'choroplethmapbox',
+  'densitymapbox', 'scattermap', 'densitymap',
+]);
+
+function isPlotlyMapFigure(plotlyJson: string): boolean {
+  try {
+    const parsed = JSON.parse(plotlyJson) as { data?: { type?: string }[] };
+    return (parsed.data ?? []).some((trace) => PLOTLY_MAP_TYPES.has((trace.type ?? '').toLowerCase()));
+  } catch { return false; }
+}
+
+interface PlotlyPoint {
+  lat: number;
+  lng: number;
+  color: string;      // resolved CSS color
+  radius: number;     // circle radius in pixels
+  label: string;      // hover/popup text
+  eventTitle: string; // popup header (trace name or layout title)
+}
+
+interface PlotlyMapData {
+  points: PlotlyPoint[];
+  title: string;
+}
+
+// Map a normalized 0-1 value through a red gradient (white → orange → dark red)
+function speedColor(norm: number): string {
+  // low: #fde8d8  mid: #f97316  high: #7f1d1d
+  const r = Math.round(253 + (127 - 253) * norm);
+  const g = Math.round(232 + (29  - 232) * norm);
+  const b = Math.round(216 + (29  - 216) * norm);
+  return `rgb(${r},${g},${b})`;
+}
+
+function extractPointsFromPlotly(plotlyJson: string): PlotlyMapData {
+  const empty: PlotlyMapData = { points: [], title: '' };
+  try {
+    const parsed = JSON.parse(plotlyJson) as {
+      data?: {
+        type?: string;
+        lat?: (number | string)[];
+        lon?: (number | string)[];
+        text?: string | string[];
+        hovertext?: string | string[];
+        customdata?: unknown[][];
+        hovertemplate?: string;
+        marker?: {
+          color?: number[] | string[] | string | number;
+          size?: number[] | number;
+          colorscale?: unknown;
+          cmin?: number;
+          cmax?: number;
+        };
+        name?: string;
+      }[];
+      layout?: { title?: string | { text?: string } };
+    };
+
+    const title =
+      typeof parsed.layout?.title === 'string'
+        ? parsed.layout.title
+        : (parsed.layout?.title?.text ?? '');
+
+    const points: PlotlyPoint[] = [];
+
+    for (const trace of parsed.data ?? []) {
+      const lats  = trace.lat  ?? [];
+      const lons  = trace.lon  ?? [];
+      // text can be per-point array or single string
+      const texts     = Array.isArray(trace.text)      ? trace.text      : (trace.text      ? [trace.text]      : []);
+      const hovertexts= Array.isArray(trace.hovertext) ? trace.hovertext : (trace.hovertext ? [trace.hovertext] : []);
+      const customdata = trace.customdata ?? [];
+      const markerColors = Array.isArray(trace.marker?.color) ? (trace.marker!.color as (number | string)[]) : [];
+      const markerSizes  = Array.isArray(trace.marker?.size)  ? (trace.marker!.size  as number[])           : [];
+      const defaultSize  = typeof trace.marker?.size === 'number' ? trace.marker.size : 10;
+
+      // Determine numeric color range for normalization
+      const numericColors = markerColors.filter((c) => typeof c === 'number') as number[];
+      const cmin = trace.marker?.cmin ?? (numericColors.length ? Math.min(...numericColors) : 0);
+      const cmax = trace.marker?.cmax ?? (numericColors.length ? Math.max(...numericColors) : 1);
+      const range = cmax - cmin || 1;
+
+      const len = Math.min(lats.length, lons.length);
+      for (let i = 0; i < len; i++) {
+        const lat = Number(lats[i]);
+        const lng = Number(lons[i]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
+        if (lat === 0 && lng === 0) continue;
+
+        // Color
+        let color = '#ef4444';
+        let speedVal: number | null = null;
+        if (markerColors.length > i) {
+          const mc = markerColors[i];
+          if (typeof mc === 'number') {
+            speedVal = mc;
+            color = speedColor((mc - cmin) / range);
+          } else if (typeof mc === 'string') {
+            color = mc;
+          }
+        } else if (typeof trace.marker?.color === 'string') {
+          color = trace.marker.color;
+        }
+
+        // Size
+        const radius = markerSizes.length > i ? markerSizes[i] / 2 : defaultSize / 2;
+
+        // Build label — prefer text/hovertext, then parse customdata intelligently
+        let label = (texts[i] ?? hovertexts[i] ?? '') as string;
+        if (!label && customdata[i]) {
+          const row = customdata[i];
+          if (Array.isArray(row) && row.length >= 2) {
+            // Typical backend customdata: [timestamp, speed_mph, lat?, lon?, course?]
+            const parts = row as unknown[];
+            const ts    = parts[0] != null ? String(parts[0]) : null;
+            const spd   = parts[1] != null ? Number(parts[1]) : speedVal;
+            const clat  = parts[2] != null ? Number(parts[2]) : lat;
+            const clng  = parts[3] != null ? Number(parts[3]) : lng;
+            const course= parts[4] != null ? Number(parts[4]) : null;
+            const lines: string[] = [];
+            if (ts)   lines.push(`🕐 ${ts}`);
+            if (spd  != null && Number.isFinite(spd))    lines.push(`🚀 Speed: ${spd.toFixed(1)} mph`);
+            if (course != null && Number.isFinite(course)) lines.push(`🧭 Heading: ${course.toFixed(0)}°`);
+            lines.push(`📍 ${clat.toFixed(5)}, ${clng.toFixed(5)}`);
+            label = lines.join('\n');
+          } else {
+            label = Array.isArray(row)
+              ? (row as unknown[]).filter((v) => v != null).join(' | ')
+              : String(row);
+          }
+        }
+        if (!label && speedVal !== null) {
+          label = `🚀 Speed: ${speedVal.toFixed(1)} mph\n📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        }
+        if (!label) {
+          label = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        }
+
+        points.push({ lat, lng, color, radius: Math.max(4, Math.min(radius, 20)), label, eventTitle: trace.name ?? title });
+      }
+    }
+
+    return { points, title };
+  } catch { return empty; }
+}
+
+// ─── coordinate extraction from Leaflet HTML ─────────────────────────────────
+
+function extractCoordsFromHtml(html: string): { lat: number; lng: number }[] {
+  const coords: { lat: number; lng: number }[] = [];
+  // Match patterns: [lat, lng] or L.latLng(lat, lng) or {lat: X, lng: Y} or {lat: X, lon: Y}
+  const patterns = [
+    /\[\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\]/g,
+    /L\.latLng\(\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*\)/g,
+    /lat["']?\s*:\s*(-?\d+\.\d+)[^\n]*lng["']?\s*:\s*(-?\d+\.\d+)/g,
+    /lat["']?\s*:\s*(-?\d+\.\d+)[^\n]*lon["']?\s*:\s*(-?\d+\.\d+)/g,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const lat = parseFloat(m[1]);
+      const lng = parseFloat(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0)) {
+        coords.push({ lat, lng });
+      }
+    }
+  }
+  // Deduplicate consecutive duplicates
+  return coords.filter((c, i) => i === 0 || c.lat !== coords[i - 1].lat || c.lng !== coords[i - 1].lng);
+}
+
+// ─── MapboxMapArtifact ────────────────────────────────────────────────────────
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
+
+function MapboxMapArtifact({ mapData, vehicle, isExpanded }: {
+  mapData: PlotlyMapData;
+  vehicle: Vehicle;
+  isExpanded: boolean;
+}) {
+  const wrapperRef   = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef       = useRef<mapboxgl.Map | null>(null);
+  const popupRef     = useRef<mapboxgl.Popup | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const height = isExpanded ? 520 : 380;
+
+  // Track fullscreen changes (Esc key, browser button)
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // Resize map when fullscreen state changes
+  useEffect(() => {
+    const t = setTimeout(() => mapRef.current?.resize(), 100);
+    return () => clearTimeout(t);
+  }, [isFullscreen]);
+
+  const initMap = useCallback(() => {
+    if (!containerRef.current || !MAPBOX_TOKEN) return;
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    const { points } = mapData;
+    const vLat = vehicle.location.lat;
+    const vLng = vehicle.location.lng;
+
+    const allLats = points.map((p) => p.lat);
+    const allLngs = points.map((p) => p.lng);
+    if (vLat !== 0 && vLng !== 0) { allLats.push(vLat); allLngs.push(vLng); }
+
+    const center: [number, number] = points.length > 0
+      ? [points[Math.floor(points.length / 2)].lng, points[Math.floor(points.length / 2)].lat]
+      : vLng !== 0 ? [vLng, vLat] : [0, 0];
+
+    const m = new mapboxgl.Map({
+      container: containerRef.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center,
+      zoom: 11,
+    });
+    mapRef.current = m;
+    m.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right');
+
+    // Fullscreen control — appended below NavigationControl, same style
+    const EXPAND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>`;
+    const SHRINK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>`;
+    let fsBtn: HTMLButtonElement | null = null;
+    const fsControl: mapboxgl.IControl = {
+      onAdd() {
+        const wrap = document.createElement('div');
+        wrap.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+        fsBtn = document.createElement('button');
+        fsBtn.type = 'button';
+        fsBtn.title = 'Toggle fullscreen';
+        fsBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;width:29px;height:29px;cursor:pointer;';
+        fsBtn.innerHTML = EXPAND_SVG;
+        fsBtn.onclick = () => {
+          if (!wrapperRef.current) return;
+          if (!document.fullscreenElement) {
+            wrapperRef.current.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
+        };
+        const syncIcon = () => { if (fsBtn) fsBtn.innerHTML = document.fullscreenElement ? SHRINK_SVG : EXPAND_SVG; };
+        document.addEventListener('fullscreenchange', syncIcon);
+        wrap.appendChild(fsBtn);
+        return wrap;
+      },
+      onRemove() { fsBtn = null; },
+    };
+    m.addControl(fsControl, 'top-right');
+
+    m.on('load', () => {
+      // Build GeoJSON FeatureCollection — one feature per point, color+radius in properties
+      const geojson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: points.map((p) => ({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+          properties: { color: p.color, radius: p.radius, label: p.label, eventTitle: p.eventTitle },
+        })),
+      };
+
+      if (points.length > 0) {
+        m.addSource('ai-points', { type: 'geojson', data: geojson });
+
+        // Outer glow ring
+        m.addLayer({
+          id: 'ai-points-glow',
+          type: 'circle',
+          source: 'ai-points',
+          paint: {
+            'circle-radius': ['*', ['get', 'radius'], 1.8],
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.25,
+            'circle-blur': 0.4,
+          },
+        });
+
+        // Main filled circle
+        m.addLayer({
+          id: 'ai-points-fill',
+          type: 'circle',
+          source: 'ai-points',
+          paint: {
+            'circle-radius': ['get', 'radius'],
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.92,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-opacity': 0.7,
+          },
+        });
+
+        // Helper: build popup HTML given all data fields
+        const buildPopupHtml = (dotColor: string, eventTitle: string, lines: string[], address: string) => {
+          // Filter out the raw coords line (starts with 📍 and contains a comma between numbers)
+          const filtered = lines.filter((l) => !/^📍\s+-?\d/.test(l));
+          const rowsHtml = filtered.map((line) => {
+            const match = line.match(/^(\S+)\s+(.+)$/);
+            const icon  = match ? match[1] : '•';
+            const text  = match ? match[2] : line;
+            return `<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+              <span style="font-size:13px;flex-shrink:0;line-height:1.5">${icon}</span>
+              <span style="font-size:12px;color:#374151;line-height:1.5;word-break:break-word">${text}</span>
+            </div>`;
+          }).join('');
+
+          const addrRow = `<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0">
+            <span style="font-size:13px;flex-shrink:0;line-height:1.5">📍</span>
+            <span id="ai-popup-addr" style="font-size:12px;color:#374151;line-height:1.5;word-break:break-word">${address}</span>
+          </div>`;
+
+          return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-width:200px;max-width:260px">
+            <div style="display:flex;align-items:center;gap:7px;padding:6px 0 8px;border-bottom:2px solid ${dotColor}">
+              <span style="width:10px;height:10px;border-radius:50%;background:${dotColor};flex-shrink:0;display:inline-block;box-shadow:0 0 0 2px rgba(0,0,0,0.1)"></span>
+              <span style="font-size:12px;font-weight:700;color:#111827;letter-spacing:0.01em">${eventTitle}</span>
+            </div>
+            <div style="padding-top:4px">${rowsHtml}${addrRow}</div>
+          </div>`;
+        };
+
+        // Click to show popup
+        m.on('click', 'ai-points-fill', (e) => {
+          if (!e.features?.length) return;
+          const feat = e.features[0];
+          const lngLat = (feat.geometry as GeoJSON.Point).coordinates as [number, number];
+          const label      = (feat.properties?.label as string) || '';
+          const dotColor   = (feat.properties?.color as string) || '#ef4444';
+          const eventTitle = (feat.properties?.eventTitle as string) || 'Location Event';
+          const lines      = label.split('\n').filter(Boolean);
+
+          // Show popup immediately with loading state
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ offset: 14, maxWidth: '270px' })
+            .setLngLat(lngLat)
+            .setHTML(buildPopupHtml(dotColor, eventTitle, lines, '<span style="color:#9ca3af;font-style:italic">Loading address…</span>'))
+            .addTo(m);
+
+          // Reverse-geocode and update address in-place
+          const [lng2, lat2] = lngLat;
+          fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng2},${lat2}.json?access_token=${MAPBOX_TOKEN}&types=address,place,locality,neighborhood&limit=1`)
+            .then((r) => r.json())
+            .then((data: { features?: { place_name?: string }[] }) => {
+              const placeName = data.features?.[0]?.place_name ?? `${lat2.toFixed(5)}, ${lng2.toFixed(5)}`;
+              // Update the address span inside the already-open popup
+              const addrEl = popupRef.current?.getElement()?.querySelector('#ai-popup-addr');
+              if (addrEl) {
+                addrEl.textContent = placeName;
+              } else {
+                // Popup was closed — skip
+              }
+            })
+            .catch(() => {
+              const addrEl = popupRef.current?.getElement()?.querySelector('#ai-popup-addr');
+              if (addrEl) addrEl.textContent = `${lat2.toFixed(5)}, ${lng2.toFixed(5)}`;
+            });
+        });
+        m.on('mouseenter', 'ai-points-fill', () => { m.getCanvas().style.cursor = 'pointer'; });
+        m.on('mouseleave', 'ai-points-fill', () => { m.getCanvas().style.cursor = ''; });
+
+        // Fit bounds
+        const bounds = new mapboxgl.LngLatBounds();
+        points.forEach((p) => bounds.extend([p.lng, p.lat]));
+        m.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 600 });
+      }
+
+      // Current vehicle marker
+      if (vLat !== 0 && vLng !== 0) {
+        const el = document.createElement('div');
+        el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#2563eb;border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);';
+        new mapboxgl.Marker(el)
+          .setLngLat([vLng, vLat])
+          .setPopup(new mapboxgl.Popup({ offset: 14 }).setText(vehicle.name))
+          .addTo(m);
+      }
+    });
+  }, [mapData, vehicle]);
+
+  useEffect(() => {
+    initMap();
+    return () => {
+      popupRef.current?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, [initMap]);
+
+  if (!MAPBOX_TOKEN) {
+    return <p className="text-xs text-muted-foreground p-3">Mapbox token not configured.</p>;
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="relative bg-black"
+      style={{ height: isFullscreen ? '100vh' : `${height}px` }}
+    >
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Title overlay */}
+      {mapData.title && (
+        <div className="absolute top-2 left-2 bg-background/85 backdrop-blur-sm rounded px-2 py-1 text-[11px] font-semibold text-foreground shadow pointer-events-none z-10">
+          {mapData.title}
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 // ─── HtmlArtifact ─────────────────────────────────────────────────────────────
 
-function HtmlArtifact({ html, isMap, isExpanded }: { html: string; isMap: boolean; isExpanded: boolean }) {
-  const iframeHeight = isMap ? (isExpanded ? 520 : 380) : (isExpanded ? 400 : 280);
+function HtmlArtifact({ html, isMap, isExpanded, vehicle }: { html: string; isMap: boolean; isExpanded: boolean; vehicle: Vehicle }) {
+  // When the artifact is a map, extract coords and render native Mapbox instead
+  const extractedMapData = useMemo<PlotlyMapData>(() => {
+    if (!isMap) return { points: [], title: '' };
+    const raw = extractCoordsFromHtml(html);
+    return {
+      points: raw.map((c) => ({ lat: c.lat, lng: c.lng, color: '#ef4444', radius: 7, label: '', eventTitle: 'Location' })),
+      title: '',
+    };
+  }, [html, isMap]);
+
+  if (isMap) {
+    return <MapboxMapArtifact mapData={extractedMapData} vehicle={vehicle} isExpanded={isExpanded} />;
+  }
+
+  const iframeHeight = isExpanded ? 400 : 280;
   const blobUrl = useMemo(() => {
     try {
       const blob = new Blob([html], { type: 'text/html' });
@@ -719,7 +1155,15 @@ function CsvTable({ csv }: { csv: string }) {
 
 // ─── PlotlyArtifact ───────────────────────────────────────────────────────────
 
-function PlotlyArtifact({ plotlyJson, isExpanded }: { plotlyJson: string; isExpanded: boolean }) {
+function PlotlyArtifact({ plotlyJson, isExpanded, vehicle }: { plotlyJson: string; isExpanded: boolean; vehicle: Vehicle }) {
+  // If the backend sent a geo/map Plotly figure, extract coords and render Mapbox instead
+  const plotlyIsMap = useMemo(() => isPlotlyMapFigure(plotlyJson), [plotlyJson]);
+  const plotlyMapCoords = useMemo(() => plotlyIsMap ? extractPointsFromPlotly(plotlyJson) : { points: [], title: '' }, [plotlyIsMap, plotlyJson]);
+
+  if (plotlyIsMap) {
+    return <MapboxMapArtifact mapData={plotlyMapCoords} vehicle={vehicle} isExpanded={isExpanded} />;
+  }
+
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 

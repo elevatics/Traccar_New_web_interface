@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
-import { Map as MapIcon, Satellite, Navigation, Layers, Locate } from 'lucide-react';
+import { Map as MapIcon, Satellite, Layers, Locate } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
@@ -31,6 +31,12 @@ interface FleetMapProps {
    * pan update at 1 s instead of waiting for the 2 s general poll.
    */
   trackedVehiclePosition?: { lat: number; lng: number; course: number } | null;
+  /**
+   * Per-vehicle tail trails for ALL online+moving vehicles.
+   * Key = vehicle id, value = ordered array of {lat,lng} positions.
+   * When provided, a blue polyline is drawn for every entry with ≥2 points.
+   */
+  allVehicleTails?: Record<string, { lat: number; lng: number }[]>;
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
@@ -255,7 +261,7 @@ function applyArrowInner(innerEl: HTMLDivElement, color: string, course: number)
   svg.setAttribute('width', '20');
   svg.setAttribute('height', '20');
   svg.setAttribute('viewBox', '0 0 48 48');
-  (svg as HTMLElement).style.cssText = `transform:rotate(${course}deg);transition:transform 0.15s linear;display:block;`;
+  (svg as SVGElement).style.cssText = `transform:rotate(${course}deg);transition:transform 0.15s linear;display:block;`;
   svg.innerHTML = `<path d="M24 7 L32 38 L24 31 L16 38 Z" fill="white" opacity="0.95"/>`;
   innerEl.appendChild(svg);
 }
@@ -294,6 +300,9 @@ function removePulseRing(markerElement: HTMLDivElement) {
 
 const LIVE_ROUTE_SOURCE = 'live-trip-route-src';
 const LIVE_ROUTE_LAYER  = 'live-trip-route-line';
+const ALL_TAILS_SOURCE  = 'all-vehicle-tails-src';
+const ALL_TAILS_LAYER   = 'all-vehicle-tails-line';
+const ALL_TAILS_GLOW    = 'all-vehicle-tails-glow';
 
 const FleetMap = ({
   vehicles,
@@ -306,6 +315,7 @@ const FleetMap = ({
   mapStorageKey = DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY,
   followTracked = false,
   trackedVehiclePosition = null,
+  allVehicleTails,
 }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -608,7 +618,7 @@ const FleetMap = ({
         existingEntry.lastCourse = course;
       } else {
         // Just update SVG rotation if only course changed
-        const svg = existingEntry.innerElement.querySelector('svg') as HTMLElement | null;
+        const svg = existingEntry.innerElement.querySelector('svg') as SVGElement | null;
         if (svg && course !== existingEntry.lastCourse) {
           svg.style.transform = `rotate(${course}deg)`;
           existingEntry.lastCourse = course;
@@ -831,6 +841,69 @@ const FleetMap = ({
     }
   }, [liveRoute]);
 
+  // ── All-vehicle tails (dashboard: every online+moving vehicle) ───────────────
+  useEffect(() => {
+    if (!map.current) return;
+
+    const applyAllTails = () => {
+      if (!map.current) return;
+      const hasSource = !!map.current.getSource(ALL_TAILS_SOURCE);
+
+      // Collect valid multi-line coordinates
+      const lines: number[][][] = [];
+      if (allVehicleTails) {
+        Object.values(allVehicleTails).forEach((trail) => {
+          if (trail.length < 2) return;
+          lines.push(trail.map((p) => [p.lng, p.lat]));
+        });
+      }
+
+      if (lines.length === 0) {
+        if (map.current.getLayer(ALL_TAILS_GLOW)) map.current.removeLayer(ALL_TAILS_GLOW);
+        if (map.current.getLayer(ALL_TAILS_LAYER)) map.current.removeLayer(ALL_TAILS_LAYER);
+        if (hasSource) map.current.removeSource(ALL_TAILS_SOURCE);
+        return;
+      }
+
+      const geojsonData = {
+        type: 'Feature' as const,
+        geometry: {
+          type: 'MultiLineString' as const,
+          coordinates: lines,
+        },
+        properties: {},
+      };
+
+      if (hasSource) {
+        (map.current.getSource(ALL_TAILS_SOURCE) as mapboxgl.GeoJSONSource).setData(geojsonData);
+      } else {
+        map.current.addSource(ALL_TAILS_SOURCE, { type: 'geojson', data: geojsonData });
+        // Soft glow
+        map.current.addLayer({
+          id: ALL_TAILS_GLOW,
+          type: 'line',
+          source: ALL_TAILS_SOURCE,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#93c5fd', 'line-width': 14, 'line-opacity': 0.22 },
+        });
+        // Main blue line
+        map.current.addLayer({
+          id: ALL_TAILS_LAYER,
+          type: 'line',
+          source: ALL_TAILS_SOURCE,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#2563eb', 'line-width': 4.5, 'line-opacity': 0.92 },
+        });
+      }
+    };
+
+    if (map.current.loaded()) {
+      applyAllTails();
+    } else {
+      map.current.once('load', applyAllTails);
+    }
+  }, [allVehicleTails]);
+
   // ── Fast tracked-vehicle position update (1 s cadence from Fleet.tsx) ───────
   // Directly moves the marker and pans the map without waiting for the general
   // fleetData poll — gives the "real-time" feel the user expects.
@@ -848,7 +921,7 @@ const FleetMap = ({
         entry.lastLng = lng;
       }
       if (course !== entry.lastCourse) {
-        const svg = entry.innerElement.querySelector('svg') as HTMLElement | null;
+        const svg = entry.innerElement.querySelector('svg') as SVGElement | null;
         if (svg) svg.style.transform = `rotate(${course}deg)`;
         entry.lastCourse = course;
       }
