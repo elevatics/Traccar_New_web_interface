@@ -55,7 +55,7 @@ traccarClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("[Traccar API][Request Error]", error?.message || error);
+    // console.error("[Traccar API][Request Error]", error?.message || error);
     return Promise.reject(error);
   },
 );
@@ -111,7 +111,7 @@ traccarClient.interceptors.response.use(
       diagnostics.hint = "Server error from Traccar instance.";
     }
 
-    console.error("[Traccar API][Response Error]", diagnostics);
+    // console.error("[Traccar API][Response Error]", diagnostics);
     return Promise.reject(error);
   },
 );

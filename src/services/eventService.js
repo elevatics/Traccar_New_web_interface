@@ -25,28 +25,34 @@ const fetchEventsFromEndpoint = ({ url, params }) =>
       "[Traccar Events] Empty response from event endpoint. This may depend on filters or device permissions.",
   });
 
+const EVENTS_404_KEY = "traccar_events_endpoint_404";
+
+// Persisted across hot-reloads within the same browser session
+let eventsEndpointUnavailable =
+  window.sessionStorage.getItem(EVENTS_404_KEY) === "1";
+
 export const getEvents = async () => {
   const timeWindow = getDefaultTimeWindow();
 
-  try {
-    return await fetchEventsFromEndpoint({
-      url: "/events",
-      params: timeWindow,
-    });
-  } catch (primaryError) {
-    if (primaryError?.response?.status !== 404) {
-      throw primaryError;
+  if (!eventsEndpointUnavailable) {
+    try {
+      return await fetchEventsFromEndpoint({
+        url: "/events",
+        params: timeWindow,
+      });
+    } catch (primaryError) {
+      if (primaryError?.response?.status !== 404) {
+        throw primaryError;
+      }
+      eventsEndpointUnavailable = true;
+      window.sessionStorage.setItem(EVENTS_404_KEY, "1");
     }
-
-    console.warn(
-      "[Traccar Events] GET /events returned 404. Falling back to /reports/events."
-    );
-
-    return fetchEventsFromEndpoint({
-      url: "/reports/events",
-      params: timeWindow,
-    });
   }
+
+  return fetchEventsFromEndpoint({
+    url: "/reports/events",
+    params: timeWindow,
+  });
 };
 
 export default getEvents;
