@@ -168,7 +168,7 @@ const NotificationBell = () => {
                           </Badge>
                         )}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase tracking-wide">
-                          {n.source === 'custom' ? 'Custom Rule' : 'Traccar'}
+                          {n.source === 'custom' ? 'Custom Rule' : 'Elevatics IoT Platform'}
                         </Badge>
                       </div>
                     </div>

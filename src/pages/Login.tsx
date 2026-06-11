@@ -131,8 +131,12 @@ export default function Login() {
         setError("Email already exists. Please sign in instead.");
       } else if (err?.response?.status === 429) {
         setError("Too many attempts. Please wait before trying again.");
+      } else if (err?.response?.status >= 500 || err?.response?.status === 502 || err?.response?.status === 503) {
+        setError("The server is currently unavailable. Please try again later.");
+      } else if (!err?.response) {
+        setError("Unable to connect. Please check your network and try again.");
       } else {
-        setError(err?.message || "Login failed. Please try again.");
+        setError("Login failed. Please try again.");
       }
     } finally {
       setSubmitting(false);

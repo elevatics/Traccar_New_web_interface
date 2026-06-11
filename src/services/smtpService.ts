@@ -106,7 +106,7 @@ export const requestPasswordReset = async (email: string): Promise<void> => {
     }
     if (response.status === 404) {
       throw new Error(
-        "Password reset endpoint not available. Make sure you are running Traccar 5.x or later."
+        "Password reset endpoint not available. Please contact your administrator."
       );
     }
     throw new Error(errorMsg || "Password reset request failed.");

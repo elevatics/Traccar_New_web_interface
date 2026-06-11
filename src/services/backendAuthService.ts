@@ -33,7 +33,11 @@ const request = async (path: string, init: RequestInit = {}) => {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error: any = new Error(data?.error || "Request failed");
+    const rawMessage: string = data?.error || "";
+    const sanitized = rawMessage.toLowerCase().includes("traccar")
+      ? "Authentication failed. Please check your credentials and try again."
+      : rawMessage || "Request failed";
+    const error: any = new Error(sanitized);
     error.response = { status: response.status, data };
     throw error;
   }

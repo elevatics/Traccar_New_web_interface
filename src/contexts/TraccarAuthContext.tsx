@@ -138,7 +138,7 @@ export const TraccarAuthProvider = ({
 export const useTraccarAuth = () => {
   const context = useContext(TraccarAuthContext);
   if (!context) {
-    throw new Error("useTraccarAuth must be used within TraccarAuthProvider");
+    throw new Error("must be used within AuthProvider");
   }
   return context;
 };

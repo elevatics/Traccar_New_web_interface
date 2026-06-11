@@ -58,7 +58,7 @@ export default function Profile() {
     <div className="p-4 sm:p-6 space-y-6 pb-8">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold">Profile</h2>
-        <p className="text-muted-foreground">Your live Traccar account and access overview.</p>
+        <p className="text-muted-foreground">Your live account and access overview.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -68,7 +68,7 @@ export default function Profile() {
               <CircleUserRound className="h-5 w-5" />
               Account Information
             </CardTitle>
-            <CardDescription>Loaded from current Traccar session.</CardDescription>
+            <CardDescription>Loaded from current session.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingSession && <p className="text-sm text-muted-foreground">Loading profile...</p>}

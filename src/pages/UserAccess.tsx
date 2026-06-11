@@ -315,7 +315,7 @@ export default function UserAccess() {
               <div>
                 <p className="font-semibold text-amber-700 dark:text-amber-400">Admin Access Required</p>
                 <p className="text-sm text-amber-600 dark:text-amber-500 mt-0.5">
-                  Only Traccar administrators can view and manage user permissions.
+                  Only administrators can view and manage user permissions.
                 </p>
               </div>
             </div>

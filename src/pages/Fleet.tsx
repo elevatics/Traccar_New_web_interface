@@ -695,7 +695,7 @@ export default function Fleet() {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <CardTitle>Live Alerts</CardTitle>
-                      <CardDescription>Most recent events from Traccar (auto-refreshes every 5s)</CardDescription>
+                      <CardDescription>Most recent events from server (auto-refreshes every 5s)</CardDescription>
                     </div>
                     {latestAlerts.length > 0 && (
                       <Badge variant="secondary" className="text-xs">
@@ -788,7 +788,7 @@ export default function Fleet() {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <CardTitle>Notification History</CardTitle>
-                      <CardDescription>Full event log from Traccar (last 24 hours)</CardDescription>
+                      <CardDescription>Full event log from server (last 24 hours)</CardDescription>
                     </div>
                     <Button variant="outline" size="sm">
                       <Bell className="h-4 w-4 mr-2" />

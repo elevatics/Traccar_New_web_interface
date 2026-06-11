@@ -40,7 +40,7 @@ export const getCurrentSession = async () => {
   } catch (error) {
     if (error?.response?.status === 404) {
       console.warn(
-        "[Traccar Auth] GET /session returned 404. This Traccar instance may not expose session read endpoint."
+        "[Auth] GET /session returned 404. This instance may not expose session read endpoint."
       );
       return null;
     }

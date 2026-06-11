@@ -185,14 +185,14 @@ export default function Vehicles() {
   };
 
   const handleDeleteVehicle = async (vehicle: Vehicle) => {
-    if (!window.confirm(`Delete "${vehicle.name}" from Traccar? This cannot be undone.`)) {
+    if (!window.confirm(`Delete "${vehicle.name}" from server? This cannot be undone.`)) {
       return;
     }
     const deviceId = vehicle.deviceId || Number(vehicle.id);
     setDeleteSubmittingId(vehicle.id);
     try {
       await deleteDevice(deviceId);
-      toast({ title: "Vehicle deleted", description: `${vehicle.name} was removed from Traccar.` });
+      toast({ title: "Vehicle deleted", description: `${vehicle.name} was removed from server.` });
       if (selectedVehicle?.id === vehicle.id) {
         setSelectedVehicle(null);
         setDetailsDialogOpen(false);
@@ -451,12 +451,12 @@ export default function Vehicles() {
         <CardContent className="py-8 text-center space-y-2">
           <FileText className="h-8 w-8 mx-auto text-muted-foreground/50" />
           <p className="text-sm font-medium text-muted-foreground">
-            Document tracking not available from Traccar
+            Document tracking not available from server
           </p>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
             Registration, insurance, and inspection dates are not stored in the
-            Traccar API. Configure vehicle maintenance reminders directly in
-            Traccar under <span className="font-medium">Maintenance → Service Intervals</span>.
+            server API. Configure vehicle maintenance reminders directly in
+            server under <span className="font-medium">Maintenance → Service Intervals</span>.
           </p>
         </CardContent>
       </Card>
@@ -471,7 +471,7 @@ export default function Vehicles() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground italic">
-              No document data available — configure in Traccar maintenance settings.
+              No document data available — configure in server maintenance settings.
             </p>
           </CardContent>
         </Card>

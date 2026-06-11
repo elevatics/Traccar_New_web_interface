@@ -22,10 +22,10 @@ const fetchEventsFromEndpoint = ({ url, params }) =>
     params,
     normalize: normalizeEvent,
     emptyMessage:
-      "[Traccar Events] Empty response from event endpoint. This may depend on filters or device permissions.",
+      "[Events] Empty response from event endpoint. This may depend on filters or device permissions.",
   });
 
-const EVENTS_404_KEY = "traccar_events_endpoint_404";
+const EVENTS_404_KEY = "server_events_endpoint_404";
 
 // Persisted across hot-reloads within the same browser session
 let eventsEndpointUnavailable =

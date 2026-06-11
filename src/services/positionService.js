@@ -58,7 +58,7 @@ const reverseGeocode = async (latitude, longitude) => {
     }
     return null;
   } catch (error) {
-    console.warn("[Traccar Positions] Reverse geocode failed:", error?.message);
+    console.warn("[Positions] Reverse geocode failed:", error?.message);
     return null;
   }
 };
@@ -93,7 +93,7 @@ export const getPositions = async () => {
     url: "/positions",
     normalize: normalizePosition,
     emptyMessage:
-      "[Traccar Positions] Empty response from GET /positions. Some Traccar setups require id/deviceId/from/to query params.",
+      "[Positions] Empty response from GET /positions. Some setups require id/deviceId/from/to query params.",
   });
 
   return enrichMissingAddresses(positions);

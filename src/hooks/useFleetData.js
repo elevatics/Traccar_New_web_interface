@@ -93,7 +93,7 @@ export const useFleetData = () => {
       }
     } catch (err) {
       if (err?.response?.status === 401) {
-        setError("Unauthorized: please login to Traccar first.");
+        setError("Unauthorized: please login to Elevatics first.");
       } else {
         setError(err?.message || "Failed to fetch fleet data");
       }

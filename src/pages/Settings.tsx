@@ -200,7 +200,7 @@ export default function Settings() {
     try {
       await saveSmtpConfig(smtp);
       setSmtpSaved(true);
-      toast.success("SMTP settings saved to Traccar server.");
+      toast.success("SMTP settings saved successfully.");
       setTimeout(() => setSmtpSaved(false), 3000);
     } catch (err: any) {
       const msg = err?.message || "Failed to save SMTP settings.";
@@ -534,7 +534,7 @@ export default function Settings() {
             {serverSaving && (
               <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Syncing to Traccar server…
+                Syncing to server…
               </span>
             )}
             <Button onClick={() => void savePrefs(trackingPrefs)} disabled={serverSaving}>

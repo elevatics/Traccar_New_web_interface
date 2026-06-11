@@ -140,7 +140,7 @@ export default function Trips() {
       const rows = raw.map(normalizeTrip);
       rows.sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime());
       setTripRows(rows);
-      toast.success(`Loaded ${rows.length} trip(s) from Traccar`);
+      toast.success(`Loaded ${rows.length} trip(s) from server`);
     } catch {
       toast.error("Trips request failed — check date range and permissions");
       setTripRows([]);
@@ -340,7 +340,7 @@ export default function Trips() {
             <CardHeader>
               <CardTitle>Live trips</CardTitle>
               <CardDescription>
-                Traccar exposes completed trip segments via <code className="text-xs">/api/reports/trips</code> (see Trip
+                Server exposes completed trip segments via <code className="text-xs">/api/reports/trips</code> (see Trip
                 History). For current movement use the Fleet map and positions.
               </CardDescription>
             </CardHeader>
@@ -515,7 +515,7 @@ export default function Trips() {
             <Card>
               <CardHeader>
                 <CardTitle>Charts</CardTitle>
-                <CardDescription>Traccar trips report does not include chart payloads; aggregate from loaded trips only.</CardDescription>
+                <CardDescription>Server trips report does not include chart payloads; aggregate from loaded trips only.</CardDescription>
               </CardHeader>
               <CardContent className="h-48 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">

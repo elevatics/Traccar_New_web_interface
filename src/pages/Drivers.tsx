@@ -86,7 +86,7 @@ export default function Drivers() {
       setDeviceRows(rows);
       setDrivers(mergeDisplayDrivers(apiDrivers, rows));
     } catch {
-      toast.error("Could not load drivers from Traccar");
+      toast.error("Could not load drivers from server");
     } finally {
       setLoading(false);
     }
@@ -125,7 +125,7 @@ export default function Drivers() {
         phone: editContactPhone,
         email: editContactEmail,
       });
-      toast.success("Contact saved on driver in Traccar");
+      toast.success("Contact saved on driver in server");
       setContactEditDriver(null);
       await loadData();
     } catch {
@@ -151,7 +151,7 @@ export default function Drivers() {
       if (ph) attributes.phone = ph;
       if (em) attributes.email = em;
       await createDriver({ name, uniqueId, attributes });
-      toast.success("Driver created in Traccar");
+      toast.success("Driver created in server");
       setAddName("");
       setAddUniqueId("");
       setAddPhone("");
@@ -191,7 +191,7 @@ export default function Drivers() {
   };
 
   const handleDeleteDriver = async (driver: DriverCard) => {
-    if (!window.confirm(`Delete driver "${driver.name}" from Traccar? This cannot be undone.`)) {
+    if (!window.confirm(`Delete driver "${driver.name}" from server? This cannot be undone.`)) {
       return;
     }
     setDeleteSubmitting(driver.traccarId);
@@ -228,7 +228,7 @@ export default function Drivers() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold">Driver Management</h2>
-          <p className="text-muted-foreground">Drivers and vehicles from your Traccar server</p>
+          <p className="text-muted-foreground">Drivers and vehicles from your server</p>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
@@ -355,7 +355,7 @@ export default function Drivers() {
             <p className="text-muted-foreground col-span-full">Loading drivers…</p>
           )}
           {!loading && drivers.length === 0 && (
-            <p className="text-muted-foreground col-span-full">No drivers in Traccar.</p>
+            <p className="text-muted-foreground col-span-full">No drivers in server.</p>
           )}
           {!loading && drivers.length > 0 && filteredDrivers.length === 0 && (
             <p className="text-muted-foreground col-span-full">No drivers match your search.</p>
@@ -419,7 +419,7 @@ export default function Drivers() {
                     <DialogContent className="max-w-lg">
                       <DialogHeader>
                         <DialogTitle>{driver.name}</DialogTitle>
-                        <DialogDescription>Data from Traccar driver and device assignment</DialogDescription>
+                        <DialogDescription>Data from server driver and device assignment</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="flex items-center gap-4">
@@ -429,7 +429,7 @@ export default function Drivers() {
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-lg font-semibold truncate">{driver.name}</h3>
-                            <p className="text-sm text-muted-foreground">Traccar id #{driver.traccarId}</p>
+                            <p className="text-sm text-muted-foreground">ID #{driver.traccarId}</p>
                           </div>
                         </div>
 
@@ -517,7 +517,7 @@ export default function Drivers() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm text-muted-foreground">Primary vehicle from Traccar assignment</div>
+                  <div className="text-sm text-muted-foreground">Primary vehicle from server assignment</div>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={() => openContactEdit(driver)}>
                       <Pencil className="h-4 w-4 mr-2" />
@@ -617,7 +617,7 @@ export default function Drivers() {
           <DialogHeader>
             <DialogTitle>Edit contact — {contactEditDriver?.name}</DialogTitle>
             <DialogDescription>
-              Saved on this driver in Traccar as <code className="text-xs">attributes.phone</code> and{" "}
+              Saved on this driver in server as <code className="text-xs">attributes.phone</code> and{" "}
               <code className="text-xs">attributes.email</code>. Clear a field and save to remove it.
             </DialogDescription>
           </DialogHeader>
@@ -659,7 +659,7 @@ export default function Drivers() {
           <DialogHeader>
             <DialogTitle>Assign vehicle — {vehicleDialogDriver?.name}</DialogTitle>
             <DialogDescription>
-              POST /api/permissions and update device display fields (same as Traccar web device settings).
+              POST /api/permissions and update device display fields (same as web device settings).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

@@ -83,7 +83,7 @@ export default function AddVehicleDialog({ open, onOpenChange, onVehicleAdded }:
         description:
           (typeof serverMessage === 'string' && serverMessage) ||
           error?.message ||
-          'Unable to create device in Traccar',
+          'Unable to create device on elevatics iot platform',
         variant: 'destructive',
       });
       setLoading(false);
@@ -91,7 +91,7 @@ export default function AddVehicleDialog({ open, onOpenChange, onVehicleAdded }:
     }
 
     setLoading(false);
-    toast({ title: 'Vehicle added successfully in Traccar' });
+    toast({ title: 'Vehicle added successfully in elevatics iot platform' });
     setForm({ name: '', identifier: '', plate_number: '', driver: '', vehicle_type: 'car', make: '', model: '', year: '', vin: '', fuel_type: 'petrol' });
     onOpenChange(false);
   };

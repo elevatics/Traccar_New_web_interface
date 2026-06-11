@@ -121,9 +121,9 @@ export function TrackingPrefsProvider({ children }: { children: React.ReactNode 
       // Merge into current server settings so we don't clobber unrelated fields
       const current = (await traccarGet("/server")) as Record<string, unknown>;
       await traccarPut("/server", { ...current, ...toServer(updated) });
-      toast.success("Preferences saved to Traccar server");
+      toast.success("Preferences saved to server");
     } catch {
-      toast.success("Preferences saved locally (Traccar server sync unavailable)");
+      toast.success("Preferences saved locally (server sync unavailable)");
     } finally {
       setServerSaving(false);
     }

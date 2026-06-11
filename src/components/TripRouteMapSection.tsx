@@ -69,7 +69,7 @@ export default function TripRouteMapSection({ trip, accessToken }: TripRouteMapS
         }
       } catch {
         if (!cancelled) {
-          setError("Could not load route from Traccar");
+          setError("Could not load route from Elevatics IoT Platform");
           const fallback = tripEndpointsLine(trip);
           if (fallback.length >= 2) {
             setCoords(fallback);
@@ -120,7 +120,7 @@ export default function TripRouteMapSection({ trip, accessToken }: TripRouteMapS
     <div className="space-y-2">
       {usedFallback && (
         <p className="text-xs text-muted-foreground">
-          Showing straight line between trip start and end (sparse or missing route points in Traccar).
+          Showing straight line between trip start and end (sparse or missing route points in Elevatics IoT Platform).
         </p>
       )}
       <TripRouteMap accessToken={accessToken} coordinates={coords} />

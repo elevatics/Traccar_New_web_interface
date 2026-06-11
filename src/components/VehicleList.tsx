@@ -102,13 +102,13 @@ const VehicleList = ({
     e.stopPropagation();
     const deviceId = Number(fleetVehicle.deviceId ?? fleetVehicle.id);
     const label = fleetVehicle.name || `Device ${deviceId}`;
-    if (!window.confirm(`Delete vehicle "${label}" from Traccar? This cannot be undone.`)) {
+    if (!window.confirm(`Delete vehicle "${label}" from Elevatics IoT Platform? This cannot be undone.`)) {
       return;
     }
     setDeletingId(String(fleetVehicle.id));
     try {
       await deleteDevice(deviceId);
-      toast.success("Vehicle removed from Traccar");
+      toast.success("Vehicle removed from Elevatics IoT Platform");
       if (String(selectedVehicle?.id) === String(fleetVehicle.id)) {
         onSelectVehicle(null);
       }
@@ -172,7 +172,7 @@ const VehicleList = ({
     return {
       id: String(fleetVehicle.id),
       deviceId: Number(fleetVehicle.deviceId ?? fleetVehicle.id),
-      protocol: fleetVehicle.protocol || 'traccar',
+      protocol: fleetVehicle.protocol || 'Elevatics IoT Platform',
       name: fleetVehicle.name,
       plateNumber: fleetVehicle.plateNumber || '-',
       driver: fleetVehicle.driver || '-',
@@ -368,7 +368,7 @@ const VehicleList = ({
                       className="shrink-0 text-destructive hover:text-destructive"
                       type="button"
                       disabled={deletingId === String(vehicle.id)}
-                      title="Delete from Traccar"
+                      title="Delete from Elevatics IoT Platform"
                       onClick={(e) => void handleDeleteDevice(e, vehicle)}
                     >
                       <Trash2 className="h-4 w-4" />

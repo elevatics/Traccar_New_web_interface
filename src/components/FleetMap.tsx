@@ -193,7 +193,7 @@ const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
   return {
     id: String(fleetVehicle.id),
     deviceId: Number(fleetVehicle.deviceId ?? fleetVehicle.id) || 0,
-    protocol: fleetVehicle.protocol || 'traccar',
+    protocol: fleetVehicle.protocol || 'elevatics iot platform',
     name: fleetVehicle.name || 'Unknown Device',
     plateNumber: fleetVehicle.plateNumber || '-',
     driver: fleetVehicle.driver || '-',
