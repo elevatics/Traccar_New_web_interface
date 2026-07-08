@@ -5,8 +5,9 @@ import FleetMap from '@/components/FleetMap';
 import { ChevronLeft, ChevronRight, List, Radio, Navigation2, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -14,61 +15,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 const MAX_TAIL_POINTS = 120;
 
 const Index = () => {
-  const { fleetData } = useFleetData();
-  const vehicles = useMemo<Vehicle[]>(
-    () =>
-      fleetData.map((rawItem) => {
-        const item = rawItem as Record<string, unknown>;
-        const nowIso = new Date().toISOString();
-        const status =
-          item.status === 'online' || item.status === 'idle' || item.status === 'offline'
-            ? (item.status as VehicleStatus)
-            : 'offline';
-        return {
-          id: String(item.id),
-          deviceId: Number(item.deviceId ?? item.id) || 0,
-          protocol: item.protocol || 'traccar',
-          name: item.name || `Device ${item.id}`,
-          plateNumber: item.plateNumber || '-',
-          driver: item.driver || '-',
-          status,
-          location: {
-            lat: Number(item.lat) || 0,
-            lng: Number(item.lng) || 0,
-            address: item.address || 'Live location unavailable',
-          },
-          speed: Number(item.speed) || 0,
-          serverTime: item.serverTime || nowIso,
-          deviceTime: item.deviceTime || nowIso,
-          fixTime: item.fixTime || nowIso,
-          lastUpdate: item.lastUpdate || nowIso,
-          fuelLevel: Number(item.fuelLevel) || 0,
-          odometer: Number(item.odometer) || 0,
-          outdated: Boolean(item.outdated),
-          valid: item.valid !== false,
-          altitude: Number(item.altitude) || 0,
-          course: Number(item.course) || 0,
-          accuracy: Number(item.accuracy) || 0,
-          network: item.network,
-          geofenceIds: item.geofenceIds,
-          tripOdometer: Number(item.tripOdometer) || 0,
-          fuelConsumption: Number(item.fuelConsumption) || 0,
-          ignition: Boolean(item.ignition),
-          statusCode: Number(item.statusCode) || 0,
-          coolantTemp: item.coolantTemp,
-          mapIntake: item.mapIntake,
-          rpm: item.rpm,
-          obdSpeed: item.obdSpeed,
-          intakeTemp: item.intakeTemp,
-          fuel: Number(item.fuel) || 0,
-          distance: Number(item.distance) || 0,
-          totalDistance: Number(item.totalDistance) || 0,
-          motion: Boolean(item.motion),
-          imageUrl: item.imageUrl || undefined,
-        } as Vehicle;
-      }),
-    [fleetData]
-  );
+  const { vehicles } = useFleetDataContext();
 
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<VehicleStatus | 'all'>('all');
@@ -163,6 +110,7 @@ const Index = () => {
             allVehicleTails={allVehicleTails}
           />
 
+
           {/* Live tracking info strip — shown when a vehicle is selected and moving */}
           {selectedVehicle && (
             <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border rounded-xl px-3 py-2 shadow-lg text-xs max-w-[calc(100%-2rem)]">
@@ -238,7 +186,6 @@ const Index = () => {
           >
             <div className={cn('h-full min-h-0', isMobile ? 'w-full' : 'w-80')}>
               <VehicleList
-                vehicles={vehicles}
                 selectedVehicle={selectedVehicle}
                 onSelectVehicle={setSelectedVehicle}
                 filterStatus={filterStatus}

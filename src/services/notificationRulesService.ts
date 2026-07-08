@@ -1,4 +1,4 @@
-export type RuleMetric = 'speed' | 'device_offline' | 'device_online';
+export type RuleMetric = 'speed' | 'device_offline' | 'device_online' | 'idle_time' | 'low_fuel';
 
 export interface NotificationRule {
   id: string;
@@ -14,7 +14,9 @@ export interface NotificationRule {
 export type ParsedPromptRuleCommand =
   | { kind: 'speed'; limit: number | null }
   | { kind: 'device_offline'; enabled: boolean }
-  | { kind: 'device_online'; enabled: boolean };
+  | { kind: 'device_online'; enabled: boolean }
+  | { kind: 'idle_time'; limit: number | null }
+  | { kind: 'low_fuel'; limit: number | null };
 
 const STORAGE_KEY = 'custom_notification_rules_v1';
 const MIN_SPEED_LIMIT_KMH = 1;
@@ -113,6 +115,68 @@ export const upsertStatusRule = ({
 
   saveNotificationRules(rules);
   return nextRule;
+};
+
+/**
+ * Upserts an idle-time alert rule for a device.
+ * `limit` is in minutes; null disables the rule.
+ */
+export const upsertIdleTimeRule = ({
+  deviceId,
+  vehicleName,
+  limit,
+}: {
+  deviceId: number;
+  vehicleName: string;
+  limit: number | null;
+}): NotificationRule => {
+  const now = new Date().toISOString();
+  const rules = getNotificationRules();
+  const idx = rules.findIndex((r) => r.deviceId === deviceId && r.metric === 'idle_time');
+  const rule: NotificationRule = {
+    id: idx >= 0 ? rules[idx].id : `idle_time-${deviceId}`,
+    deviceId,
+    vehicleName,
+    metric: 'idle_time',
+    limit,
+    enabled: limit !== null,
+    createdAt: idx >= 0 ? rules[idx].createdAt : now,
+    updatedAt: now,
+  };
+  if (idx >= 0) rules[idx] = rule; else rules.push(rule);
+  saveNotificationRules(rules);
+  return rule;
+};
+
+/**
+ * Upserts a low-fuel alert rule for a device.
+ * `limit` is a percentage (0–100); null disables the rule.
+ */
+export const upsertLowFuelRule = ({
+  deviceId,
+  vehicleName,
+  limit,
+}: {
+  deviceId: number;
+  vehicleName: string;
+  limit: number | null;
+}): NotificationRule => {
+  const now = new Date().toISOString();
+  const rules = getNotificationRules();
+  const idx = rules.findIndex((r) => r.deviceId === deviceId && r.metric === 'low_fuel');
+  const rule: NotificationRule = {
+    id: idx >= 0 ? rules[idx].id : `low_fuel-${deviceId}`,
+    deviceId,
+    vehicleName,
+    metric: 'low_fuel',
+    limit,
+    enabled: limit !== null,
+    createdAt: idx >= 0 ? rules[idx].createdAt : now,
+    updatedAt: now,
+  };
+  if (idx >= 0) rules[idx] = rule; else rules.push(rule);
+  saveNotificationRules(rules);
+  return rule;
 };
 
 export const parseSpeedLimitPrompt = (input: string): number | null | undefined => {

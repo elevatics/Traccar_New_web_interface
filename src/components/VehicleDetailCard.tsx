@@ -405,16 +405,37 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             </div>
           )}
 
-          {(vehicle.coolantTemp || vehicle.intakeTemp) && (
+        {/* OBD health mini-card — only when device reports OBD data */}
+        {(vehicle.rpm !== undefined || vehicle.coolantTemp !== undefined || vehicle.obdSpeed !== undefined || vehicle.mapIntake !== undefined || vehicle.intakeTemp !== undefined) && (
+          <>
+            <SectionLabel icon={<Cpu className="h-3.5 w-3.5" />} label="Engine / OBD" />
             <div className="grid grid-cols-2 gap-2">
+              {vehicle.rpm !== undefined && (
+                <StatChip label="RPM" value={vehicle.rpm > 0 ? vehicle.rpm.toLocaleString() : 'Off'} icon={<Activity className="h-4 w-4" />} color={vehicle.rpm > 0 ? 'green' : 'muted'} />
+              )}
+              {vehicle.ignition !== undefined && (
+                <StatChip label="Ignition" value={vehicle.ignition ? 'ON' : 'OFF'} icon={<Zap className="h-4 w-4" />} color={vehicle.ignition ? 'green' : 'red'} />
+              )}
+              {vehicle.obdSpeed !== undefined && (
+                <StatChip label="OBD Speed" value={`${Math.round(vehicle.obdSpeed)} km/h`} icon={<Gauge className="h-4 w-4" />} color="muted" />
+              )}
               {vehicle.coolantTemp !== undefined && (
-                <MetricItem label="Coolant" value={`${vehicle.coolantTemp}°`} icon={<Thermometer className="h-3.5 w-3.5" />} />
+                <StatChip
+                  label="Coolant"
+                  value={`${vehicle.coolantTemp}°C`}
+                  icon={<Thermometer className="h-4 w-4" />}
+                  color={vehicle.coolantTemp > 100 ? 'orange' : 'muted'}
+                />
               )}
               {vehicle.intakeTemp !== undefined && (
-                <MetricItem label="Intake" value={`${vehicle.intakeTemp}°`} icon={<Thermometer className="h-3.5 w-3.5" />} />
+                <StatChip label="Intake Temp" value={`${vehicle.intakeTemp}°C`} icon={<Thermometer className="h-4 w-4" />} color="muted" />
+              )}
+              {vehicle.mapIntake !== undefined && (
+                <StatChip label="MAP" value={`${vehicle.mapIntake} kPa`} icon={<BarChart3 className="h-4 w-4" />} color="muted" />
               )}
             </div>
-          )}
+          </>
+        )}
         </div>
 
         {/* ── SECTION 4: System Info (collapsible) ── */}
@@ -457,7 +478,6 @@ const VehicleDetailCard = ({ vehicle, onClose, onPositionChange, onOpenAIChat }:
             {fuelUsedDisplay && <SysRow label="Fuel Used" value={fuelUsedDisplay} icon={<Fuel className="h-3 w-3" />} />}
             {prefs.showAltitude && <SysRow label="Altitude" value={`${vehicle.altitude.toFixed(0)} m`} />}
             {vehicle.network && <SysRow label="Network" value={vehicle.network} />}
-            {vehicle.rpm !== undefined && <SysRow label="RPM" value={String(vehicle.rpm)} />}
           </div>
         </div>
       </div>

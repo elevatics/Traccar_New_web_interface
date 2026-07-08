@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,7 +43,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 
 type ViewType = 'schedule' | 'in-progress' | 'completed' | 'create' | 'breakdown' | 'cost';
 
@@ -137,8 +137,33 @@ const mockMaintenanceOrders: MaintenanceOrder[] = [
   },
 ];
 
+const MAINTENANCE_STORAGE_KEY = 'fleet_maintenance_orders_v1';
+
+function loadOrders(): MaintenanceOrder[] {
+  try {
+    const raw = localStorage.getItem(MAINTENANCE_STORAGE_KEY);
+    if (!raw) return mockMaintenanceOrders;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : mockMaintenanceOrders;
+  } catch {
+    return mockMaintenanceOrders;
+  }
+}
+
+const EMPTY_FORM = {
+  vehicleId: '',
+  vehicleName: '',
+  type: 'scheduled' as MaintenanceOrder['type'],
+  description: '',
+  priority: 'medium' as MaintenanceOrder['priority'],
+  scheduledDate: new Date().toISOString().split('T')[0],
+  cost: '',
+  technician: '',
+  notes: '',
+};
+
 export default function Maintenance() {
-  const { fleetData } = useFleetData();
+  const { vehicles } = useFleetDataContext();
   const [currentView, setCurrentView] = useState<ViewType>('schedule');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,18 +172,27 @@ export default function Maintenance() {
   const [createOrderDialogOpen, setCreateOrderDialogOpen] = useState(false);
   const [costDialogOpen, setCostDialogOpen] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [orders, setOrders] = useState<MaintenanceOrder[]>(loadOrders);
+  const [form, setForm] = useState(EMPTY_FORM);
   const { toast } = useToast();
+
+  useEffect(() => {
+    localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(orders));
+  }, [orders]);
+
+  const updateOrderStatus = (id: string, status: MaintenanceOrder['status']) => {
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === id
+          ? { ...o, status, ...(status === 'completed' ? { completedDate: new Date().toISOString().split('T')[0] } : {}) }
+          : o
+      )
+    );
+    toast({ title: `Order marked as ${status}` });
+  };
   const vehiclesData = useMemo(
-    () =>
-      fleetData.map((rawItem) => {
-        const item = rawItem as Record<string, unknown>;
-        return {
-          id: String(item.id),
-          name: String(item.name || `Device ${String(item.id)}`),
-          plateNumber: String(item.plateNumber || "-"),
-        };
-      }),
-    [fleetData]
+    () => vehicles.map((v) => ({ id: v.id, name: v.name, plateNumber: v.plateNumber })),
+    [vehicles]
   );
 
   const viewOptions = [
@@ -172,7 +206,7 @@ export default function Maintenance() {
 
   const currentViewLabel = viewOptions.find(opt => opt.value === currentView)?.label || 'Maintenance Schedule';
 
-  const filteredOrders = mockMaintenanceOrders.filter(order =>
+  const filteredOrders = orders.filter(order =>
     order.vehicleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     order.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -212,10 +246,26 @@ export default function Maintenance() {
   };
 
   const handleSubmitOrder = () => {
-    toast({
-      title: "Maintenance Order Created",
-      description: "The maintenance order has been scheduled successfully.",
-    });
+    if (!form.vehicleId || !form.description.trim()) {
+      toast({ title: 'Missing fields', description: 'Vehicle and description are required.', variant: 'destructive' });
+      return;
+    }
+    const newOrder: MaintenanceOrder = {
+      id: `mo-${Date.now()}`,
+      vehicleId: form.vehicleId,
+      vehicleName: form.vehicleName || form.vehicleId,
+      type: form.type,
+      description: form.description.trim(),
+      priority: form.priority,
+      status: 'scheduled',
+      scheduledDate: form.scheduledDate || new Date().toISOString().split('T')[0],
+      cost: form.cost ? Number(form.cost) : undefined,
+      technician: form.technician.trim() || undefined,
+      notes: form.notes.trim() || undefined,
+    };
+    setOrders((prev) => [newOrder, ...prev]);
+    setForm(EMPTY_FORM);
+    toast({ title: 'Maintenance Order Created', description: `${newOrder.vehicleName} — ${newOrder.description}` });
     setCreateOrderDialogOpen(false);
   };
 
@@ -262,11 +312,11 @@ export default function Maintenance() {
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline" className="flex-1">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => updateOrderStatus(order.id, 'in-progress')}>
                       Start Work
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      Reschedule
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => updateOrderStatus(order.id, 'completed')}>
+                      Mark Complete
                     </Button>
                   </div>
                 </div>
@@ -328,11 +378,11 @@ export default function Maintenance() {
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
-                    <Button size="sm" className="flex-1">
-                      Complete
+                    <Button size="sm" className="flex-1" onClick={() => updateOrderStatus(order.id, 'completed')}>
+                      Mark Complete
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      Update Status
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => updateOrderStatus(order.id, 'scheduled')}>
+                      Reschedule
                     </Button>
                   </div>
                 </div>
@@ -549,14 +599,14 @@ export default function Maintenance() {
   };
 
   const renderCostView = () => {
-    const totalCost = mockMaintenanceOrders.reduce((sum, order) => sum + (order.cost || 0), 0);
-    const completedCost = mockMaintenanceOrders
+    const totalCost = orders.reduce((sum, order) => sum + (order.cost || 0), 0);
+    const completedCost = orders
       .filter(o => o.status === 'completed')
       .reduce((sum, order) => sum + (order.cost || 0), 0);
-    const inProgressCost = mockMaintenanceOrders
+    const inProgressCost = orders
       .filter(o => o.status === 'in-progress')
       .reduce((sum, order) => sum + (order.cost || 0), 0);
-    const scheduledCost = mockMaintenanceOrders
+    const scheduledCost = orders
       .filter(o => o.status === 'scheduled')
       .reduce((sum, order) => sum + (order.cost || 0), 0);
 
@@ -597,7 +647,7 @@ export default function Maintenance() {
           <CardContent>
             <div className="space-y-4">
               {vehiclesData.map((vehicle) => {
-                const vehicleOrders = mockMaintenanceOrders.filter(o => o.vehicleId === vehicle.id);
+                const vehicleOrders = orders.filter(o => o.vehicleId === vehicle.id);
                 const vehicleCost = vehicleOrders.reduce((sum, order) => sum + (order.cost || 0), 0);
                 
                 if (vehicleCost === 0) return null;
@@ -638,7 +688,7 @@ export default function Maintenance() {
                   <span className="font-medium">Scheduled</span>
                 </div>
                 <div className="text-2xl font-semibold">
-                  ${mockMaintenanceOrders
+                  ${orders
                     .filter(o => o.type === 'scheduled')
                     .reduce((sum, order) => sum + (order.cost || 0), 0)
                     .toLocaleString()}
@@ -650,7 +700,7 @@ export default function Maintenance() {
                   <span className="font-medium">Breakdowns</span>
                 </div>
                 <div className="text-2xl font-semibold text-red-600">
-                  ${mockMaintenanceOrders
+                  ${orders
                     .filter(o => o.type === 'breakdown')
                     .reduce((sum, order) => sum + (order.cost || 0), 0)
                     .toLocaleString()}
@@ -662,7 +712,7 @@ export default function Maintenance() {
                   <span className="font-medium">Inspections</span>
                 </div>
                 <div className="text-2xl font-semibold">
-                  ${mockMaintenanceOrders
+                  ${orders
                     .filter(o => o.type === 'inspection')
                     .reduce((sum, order) => sum + (order.cost || 0), 0)
                     .toLocaleString()}
@@ -820,7 +870,7 @@ export default function Maintenance() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {mockMaintenanceOrders
+            {orders
               .filter(o => o.status === 'completed')
               .map((order) => (
                 <div key={order.id} className="p-3 border rounded-lg">
@@ -845,46 +895,81 @@ export default function Maintenance() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Order Dialog (Quick Action) */}
-      <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
-        <DialogContent>
+      {/* Create Order Dialog */}
+      <Dialog open={createOrderDialogOpen} onOpenChange={(open) => { setCreateOrderDialogOpen(open); if (!open) setForm(EMPTY_FORM); }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Quick Create Maintenance Order</DialogTitle>
-            <DialogDescription>
-              Quickly schedule a new maintenance task
-            </DialogDescription>
+            <DialogTitle>Create Maintenance Order</DialogTitle>
+            <DialogDescription>Schedule a new maintenance task for your fleet.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Vehicle</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vehicle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehiclesData.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="grid gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 space-y-1">
+                <Label>Vehicle *</Label>
+                <Select value={form.vehicleId} onValueChange={(id) => {
+                  const v = vehiclesData.find(v => v.id === id);
+                  setForm(f => ({ ...f, vehicleId: id, vehicleName: v?.name ?? id }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                  <SelectContent>
+                    {vehiclesData.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                    ))}
+                    {vehiclesData.length === 0 && <SelectItem value="_none" disabled>No vehicles</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v as MaintenanceOrder['type'] }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="breakdown">Breakdown</SelectItem>
+                    <SelectItem value="inspection">Inspection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Priority</Label>
+                <Select value={form.priority} onValueChange={(v) => setForm(f => ({ ...f, priority: v as MaintenanceOrder['priority'] }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea placeholder="Describe the work needed..." />
+            <div className="space-y-1">
+              <Label>Description *</Label>
+              <Textarea
+                placeholder="Describe the work needed..."
+                value={form.description}
+                onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Scheduled Date</Label>
+                <Input type="date" value={form.scheduledDate} onChange={(e) => setForm(f => ({ ...f, scheduledDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Est. Cost ($)</Label>
+                <Input type="number" min="0" placeholder="0" value={form.cost} onChange={(e) => setForm(f => ({ ...f, cost: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Technician</Label>
+                <Input placeholder="Technician name" value={form.technician} onChange={(e) => setForm(f => ({ ...f, technician: e.target.value }))} />
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOrderDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => {
-              handleSubmitOrder();
-              setCreateOrderDialogOpen(false);
-            }}>
-              Create Order
-            </Button>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => { setCreateOrderDialogOpen(false); setForm(EMPTY_FORM); }}>Cancel</Button>
+            <Button onClick={handleSubmitOrder}>Create Order</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -906,7 +991,7 @@ export default function Maintenance() {
               <div className="p-4 bg-primary/5 rounded-lg">
                 <div className="text-sm text-muted-foreground">Total Spent</div>
                 <div className="text-2xl font-bold">
-                  ${mockMaintenanceOrders
+                  ${orders
                     .filter(o => o.status === 'completed')
                     .reduce((sum, order) => sum + (order.cost || 0), 0)
                     .toLocaleString()}
@@ -915,22 +1000,21 @@ export default function Maintenance() {
               <div className="p-4 bg-primary/5 rounded-lg">
                 <div className="text-sm text-muted-foreground">Avg Cost per Order</div>
                 <div className="text-2xl font-bold">
-                  ${Math.round(
-                    mockMaintenanceOrders
-                      .filter(o => o.cost)
-                      .reduce((sum, order) => sum + (order.cost || 0), 0) /
-                    mockMaintenanceOrders.filter(o => o.cost).length
-                  )}
+                  ${(() => {
+                    const withCost = orders.filter(o => o.cost);
+                    if (!withCost.length) return 0;
+                    return Math.round(withCost.reduce((s, o) => s + (o.cost || 0), 0) / withCost.length);
+                  })()}
                 </div>
               </div>
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium">Cost Distribution</div>
               {['scheduled', 'breakdown', 'inspection'].map((type) => {
-                const typeCost = mockMaintenanceOrders
+                const typeCost = orders
                   .filter(o => o.type === type)
                   .reduce((sum, order) => sum + (order.cost || 0), 0);
-                const total = mockMaintenanceOrders.reduce((sum, order) => sum + (order.cost || 0), 0);
+                const total = orders.reduce((sum, order) => sum + (order.cost || 0), 0);
                 const percentage = total > 0 ? (typeCost / total) * 100 : 0;
                 
                 return (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Car,
   CarFront,
@@ -45,13 +55,13 @@ import StatusBadge from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import AddVehicleDialog from '@/components/AddVehicleDialog';
 import EditVehicleDialog from '@/components/EditVehicleDialog';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { deleteDevice } from '@/services/deviceService';
 
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
 export default function Vehicles() {
-  const { fleetData, refresh } = useFleetData();
+  const { vehicles: vehiclesData, refresh } = useFleetDataContext();
   const [currentView, setCurrentView] = useState<ViewType>('list');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +71,7 @@ export default function Vehicles() {
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
   const [deleteSubmittingId, setDeleteSubmittingId] = useState<string | null>(null);
+  const [deleteDialogTarget, setDeleteDialogTarget] = useState<Vehicle | null>(null);
   const [editVehicleOpen, setEditVehicleOpen] = useState(false);
   const [editVehicleTarget, setEditVehicleTarget] = useState<Vehicle | null>(null);
   const { toast } = useToast();
@@ -76,59 +87,6 @@ export default function Vehicles() {
   const fmtOdo = (meters: number) =>
     `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
 
-  const vehiclesData = useMemo<Vehicle[]>(
-    () =>
-      fleetData.map((rawItem) => {
-        const item = rawItem as Record<string, unknown>;
-        const status =
-          item.status === 'online' || item.status === 'idle' || item.status === 'offline'
-            ? item.status
-            : 'offline';
-        return {
-          id: String(item.id),
-          deviceId: Number(item.deviceId ?? item.id) || 0,
-          protocol: item.protocol || 'traccar',
-          name: item.name || `Device ${item.id}`,
-          plateNumber: item.plateNumber || '-',
-          driver: item.driver || '-',
-          status,
-          location: {
-            lat: Number(item.lat) || 0,
-            lng: Number(item.lng) || 0,
-            address: item.address || 'Live location unavailable',
-          },
-          speed: Number(item.speed) || 0,
-          serverTime: (item.serverTime as string) || '',
-          deviceTime: (item.deviceTime as string) || '',
-          fixTime: (item.fixTime as string) || '',
-          lastUpdate: (item.lastUpdate as string) || '',
-          fuelLevel: Number(item.fuelLevel) || 0,
-          odometer: Number(item.odometer) || 0,
-          outdated: Boolean(item.outdated),
-          valid: item.valid !== false,
-          altitude: Number(item.altitude) || 0,
-          course: Number(item.course) || 0,
-          accuracy: Number(item.accuracy) || 0,
-          network: item.network,
-          geofenceIds: item.geofenceIds,
-          tripOdometer: Number(item.tripOdometer) || 0,
-          fuelConsumption: Number(item.fuelConsumption) || 0,
-          ignition: Boolean(item.ignition),
-          statusCode: Number(item.statusCode) || 0,
-          coolantTemp: item.coolantTemp,
-          mapIntake: item.mapIntake,
-          rpm: item.rpm,
-          obdSpeed: item.obdSpeed,
-          intakeTemp: item.intakeTemp,
-          fuel: Number(item.fuel) || 0,
-          distance: Number(item.distance) || 0,
-          totalDistance: Number(item.totalDistance) || 0,
-          motion: Boolean(item.motion),
-          imageUrl: item.imageUrl || undefined,
-        } as Vehicle;
-      }),
-    [fleetData]
-  );
 
   const viewOptions = [
     { value: 'list' as ViewType, label: 'Vehicle List', icon: Car },
@@ -185,9 +143,6 @@ export default function Vehicles() {
   };
 
   const handleDeleteVehicle = async (vehicle: Vehicle) => {
-    if (!window.confirm(`Delete "${vehicle.name}" from server? This cannot be undone.`)) {
-      return;
-    }
     const deviceId = vehicle.deviceId || Number(vehicle.id);
     setDeleteSubmittingId(vehicle.id);
     try {
@@ -347,7 +302,7 @@ export default function Vehicles() {
                     variant="outline"
                     className="text-destructive hover:text-destructive"
                     disabled={deleteSubmittingId === vehicle.id}
-                    onClick={() => void handleDeleteVehicle(vehicle)}
+                    onClick={() => setDeleteDialogTarget(vehicle)}
                   >
                     <Trash2 className="h-3 w-3 mr-1" />
                     {deleteSubmittingId === vehicle.id ? "…" : "Delete"}
@@ -870,6 +825,26 @@ export default function Vehicles() {
         deviceName={editVehicleTarget?.name}
         onVehicleUpdated={refresh}
       />
+
+      <AlertDialog open={!!deleteDialogTarget} onOpenChange={(open) => { if (!open) setDeleteDialogTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove <span className="font-semibold text-foreground">"{deleteDialogTarget?.name}"</span> from the server. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteDialogTarget) void handleDeleteVehicle(deleteDialogTarget); setDeleteDialogTarget(null); }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

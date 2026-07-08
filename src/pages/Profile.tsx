@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getCurrentSession } from "@/services/authService";
-import useFleetData from "@/hooks/useFleetData";
+import { useFleetDataContext } from "@/contexts/FleetDataContext";
 import { CircleUserRound, Mail, ShieldCheck, Truck } from "lucide-react";
 
 type SessionUser = {
@@ -21,7 +21,7 @@ export default function Profile() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const { fleetData } = useFleetData();
+  const { vehicles: fleetVehicles } = useFleetDataContext();
 
   useEffect(() => {
     let active = true;
@@ -48,11 +48,11 @@ export default function Profile() {
   }, []);
 
   const fleetSummary = useMemo(() => {
-    const total = fleetData.length;
-    const online = fleetData.filter((item: any) => item.status === "online").length;
-    const idle = fleetData.filter((item: any) => item.status === "idle").length;
+    const total = fleetVehicles.length;
+    const online = fleetVehicles.filter((v) => v.status === 'online').length;
+    const idle = fleetVehicles.filter((v) => v.status === 'idle').length;
     return { total, online, idle };
-  }, [fleetData]);
+  }, [fleetVehicles]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 pb-8">

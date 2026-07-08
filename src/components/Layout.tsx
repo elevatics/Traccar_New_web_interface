@@ -1,6 +1,24 @@
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import NotificationBell from "@/components/NotificationBell";
+import { Button } from "@/components/ui/button";
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Toggle theme"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+    >
+      <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+    </Button>
+  );
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background px-3 sm:gap-4 sm:px-4 shrink-0">
             <SidebarTrigger />
             <h1 className="text-sm font-semibold flex-1 truncate sm:text-lg">Fleet Management Portal</h1>
+            <ThemeToggle />
             <NotificationBell />
           </header>
           <main className="flex-1 min-h-0 w-full min-w-0 overflow-y-auto overflow-x-hidden">

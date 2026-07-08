@@ -1,3 +1,4 @@
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,7 @@ import { Layout } from "./components/Layout";
 import { UserRoleProvider } from "./contexts/UserRoleContext";
 import { TraccarAuthProvider, useTraccarAuth } from "./contexts/TraccarAuthContext";
 import { TrackingPrefsProvider } from "./contexts/TrackingPrefsContext";
+import { FleetDataProvider } from "./contexts/FleetDataContext";
 import Index from "./pages/Index";
 import Fleet from "./pages/Fleet";
 import Trips from "./pages/Trips";
@@ -34,13 +36,16 @@ const ProtectedRoutes = () => {
   }
 
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <FleetDataProvider>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </FleetDataProvider>
   );
 };
 
 const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
   <QueryClientProvider client={queryClient}>
     <TrackingPrefsProvider>
       <UserRoleProvider>
@@ -76,6 +81,7 @@ const App = () => (
       </UserRoleProvider>
     </TrackingPrefsProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

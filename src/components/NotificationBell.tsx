@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/popover';
 import { formatDistanceToNow } from 'date-fns';
 import { useNotifications, NotificationType, AlertSeverity } from '@/hooks/useNotifications';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 
 const getTypeIcon = (type: NotificationType, severity: AlertSeverity) => {
   const base = 'h-4 w-4';
@@ -55,11 +55,11 @@ const severityBorderClass: Record<AlertSeverity, string> = {
 };
 
 const NotificationBell = () => {
-  const { fleetData } = useFleetData();
+  const { fleetData } = useFleetDataContext();
 
   const deviceNameMap = useMemo<Record<number, string>>(() => {
     const map: Record<number, string> = {};
-    for (const d of fleetData as any[]) {
+    for (const d of fleetData) {
       if (d.id != null && d.name) map[Number(d.id)] = d.name;
     }
     return map;
@@ -72,7 +72,7 @@ const NotificationBell = () => {
     markAllAsRead,
     clearNotification,
     clearAll,
-  } = useNotifications(deviceNameMap, fleetData as any[]);
+  } = useNotifications(deviceNameMap, fleetData);
 
   return (
     <Popover>

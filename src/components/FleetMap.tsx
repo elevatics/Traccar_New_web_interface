@@ -7,7 +7,7 @@ import { Map as MapIcon, Satellite, Layers, Locate } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VehicleDetailCard from './VehicleDetailCard';
 import VehicleAIChat from './VehicleAIChat';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useTrackingPrefs } from '@/contexts/TrackingPrefsContext';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
 
@@ -336,7 +336,7 @@ const FleetMap = ({
   const [isAiChatDragging, setIsAiChatDragging] = useState(false);
   const [aiChatDragOffset, setAiChatDragOffset] = useState({ x: 0, y: 0 });
   const aiChatWrapperRef = useRef<HTMLDivElement>(null);
-  const { fleetData } = useFleetData();
+  const { fleetData } = useFleetDataContext();
   const { prefs } = useTrackingPrefs();
   const vehiclesById = useMemo(
     () =>

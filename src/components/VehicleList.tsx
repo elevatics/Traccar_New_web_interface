@@ -2,82 +2,46 @@ import { useMemo, useState, type MouseEvent } from 'react';
 import { Vehicle, VehicleStatus } from '@/types/vehicle';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import StatusBadge from './StatusBadge';
 import { cn } from '@/lib/utils';
-import { ChevronDown, Plus, Trash2, Pencil } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, Pencil, Car } from 'lucide-react';
 import AddVehicleDialog from './AddVehicleDialog';
 import EditVehicleDialog from './EditVehicleDialog';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { formatDistanceToNow } from 'date-fns';
 import { deleteDevice } from '@/services/deviceService';
 import { toast } from 'sonner';
 
-type FleetListItem = {
-  id: string | number;
-  deviceId?: number;
-  protocol?: string;
-  name: string;
-  plateNumber?: string;
-  driver?: string;
-  status: string;
-  address?: string;
-  speed: number;
-  serverTime?: string | null;
-  deviceTime?: string | null;
-  fixTime?: string | null;
-  lastUpdate?: string | null;
-  fuelLevel?: number;
-  odometer?: number;
-  outdated?: boolean;
-  valid?: boolean;
-  altitude?: number;
-  course?: number;
-  accuracy?: number;
-  network?: string;
-  geofenceIds?: string;
-  tripOdometer?: number;
-  fuelConsumption?: number;
-  ignition?: boolean;
-  statusCode?: number;
-  coolantTemp?: number;
-  mapIntake?: number;
-  rpm?: number;
-  obdSpeed?: number;
-  intakeTemp?: number;
-  fuel?: number;
-  distance?: number;
-  totalDistance?: number;
-  motion?: boolean;
-  lat: number;
-  lng: number;
-  imageUrl?: string;
-};
 const toVehicleStatus = (status?: string): VehicleStatus => {
-  if (status === 'online' || status === 'idle' || status === 'offline') {
-    return status;
-  }
+  if (status === 'online' || status === 'idle' || status === 'offline') return status;
   return 'offline';
 };
 
-const getUpdatedText = (vehicle: FleetListItem) => {
+const getUpdatedText = (vehicle: Vehicle) => {
   const updatedAt =
     vehicle.lastUpdate || vehicle.fixTime || vehicle.deviceTime || vehicle.serverTime;
 
-  if (!updatedAt) {
-    return "N/A";
-  }
+  if (!updatedAt) return 'N/A';
 
   const parsed = new Date(updatedAt);
-  if (Number.isNaN(parsed.getTime())) {
-    return "N/A";
-  }
+  if (Number.isNaN(parsed.getTime())) return 'N/A';
 
   return formatDistanceToNow(parsed, { addSuffix: true });
 };
 
 interface VehicleListProps {
-  vehicles: Vehicle[];
   selectedVehicle: Vehicle | null;
   onSelectVehicle: (vehicle: Vehicle | null) => void;
   filterStatus: VehicleStatus | 'all';
@@ -85,7 +49,6 @@ interface VehicleListProps {
 }
 
 const VehicleList = ({
-  vehicles,
   selectedVehicle,
   onSelectVehicle,
   filterStatus,
@@ -95,122 +58,53 @@ const VehicleList = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{ deviceId: number; name: string } | null>(null);
-  const { fleetData, loading, error, refresh } = useFleetData();
+  const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
 
-  const handleDeleteDevice = async (e: MouseEvent, fleetVehicle: FleetListItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const deviceId = Number(fleetVehicle.deviceId ?? fleetVehicle.id);
-    const label = fleetVehicle.name || `Device ${deviceId}`;
-    if (!window.confirm(`Delete vehicle "${label}" from Elevatics IoT Platform? This cannot be undone.`)) {
-      return;
-    }
-    setDeletingId(String(fleetVehicle.id));
+  const { vehicles, loading, error, refresh, idleStartTimes } = useFleetDataContext();
+
+  const getIdleLabel = (vehicleId: string): string | null => {
+    const start = idleStartTimes[vehicleId];
+    if (!start) return null;
+    const mins = Math.floor((Date.now() - start) / 60000);
+    if (mins < 1) return 'Idle < 1 min';
+    return `Idle ${mins} min`;
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteTarget) return;
+    const vehicle = deleteTarget;
+    setDeleteTarget(null);
+    setDeletingId(vehicle.id);
     try {
-      await deleteDevice(deviceId);
-      toast.success("Vehicle removed from Elevatics IoT Platform");
-      if (String(selectedVehicle?.id) === String(fleetVehicle.id)) {
-        onSelectVehicle(null);
-      }
+      await deleteDevice(vehicle.deviceId);
+      toast.success(`"${vehicle.name}" removed from Elevatics IoT Platform`);
+      if (selectedVehicle?.id === vehicle.id) onSelectVehicle(null);
       await refresh();
     } catch (err: unknown) {
       const message =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { message?: string }; status?: number } }).response?.data
-              ?.message
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : null;
-      toast.error(message || (err instanceof Error ? err.message : "Could not delete vehicle"));
+      toast.error(message || (err instanceof Error ? err.message : 'Could not delete vehicle'));
     } finally {
       setDeletingId(null);
     }
   };
 
-  const fleetVehicles = useMemo(
-    () =>
-      fleetData.map((item) => ({
-        ...item,
-        id: item.id,
-        name: item.name,
-        status: item.status ?? 'offline',
-        speed: item.speed ?? 0,
-        lat: item.lat,
-        lng: item.lng,
-      })),
-    [fleetData]
+  const filteredVehicles = useMemo(
+    () => (filterStatus === 'all' ? vehicles : vehicles.filter((v) => v.status === filterStatus)),
+    [vehicles, filterStatus]
   );
 
-  const filteredVehicles =
-    filterStatus === 'all'
-      ? fleetVehicles
-      : fleetVehicles.filter((v) => v.status === filterStatus);
-
-  const statusCounts = {
-    all: fleetVehicles.length,
-    online: fleetVehicles.filter((v) => v.status === 'online').length,
-    idle: fleetVehicles.filter((v) => v.status === 'idle').length,
-    offline: fleetVehicles.filter((v) => v.status === 'offline').length,
-  };
-
-  const getVehicleForSelection = (fleetVehicle: FleetListItem): Vehicle => {
-    const matchedVehicle = vehicles.find(
-      (vehicle) => String(vehicle.id) === String(fleetVehicle.id)
-    );
-
-    if (matchedVehicle) {
-      return {
-        ...matchedVehicle,
-        status: toVehicleStatus(fleetVehicle.status) ?? matchedVehicle.status,
-        speed: fleetVehicle.speed,
-        location: {
-          ...matchedVehicle.location,
-          lat: fleetVehicle.lat,
-          lng: fleetVehicle.lng,
-        },
-      };
-    }
-
-    return {
-      id: String(fleetVehicle.id),
-      deviceId: Number(fleetVehicle.deviceId ?? fleetVehicle.id),
-      protocol: fleetVehicle.protocol || 'Elevatics IoT Platform',
-      name: fleetVehicle.name,
-      plateNumber: fleetVehicle.plateNumber || '-',
-      driver: fleetVehicle.driver || '-',
-      status: toVehicleStatus(fleetVehicle.status),
-      location: {
-        lat: fleetVehicle.lat,
-        lng: fleetVehicle.lng,
-        address: fleetVehicle.address || 'Live location',
-      },
-      speed: fleetVehicle.speed,
-      serverTime: fleetVehicle.serverTime || '',
-      deviceTime: fleetVehicle.deviceTime || '',
-      fixTime: fleetVehicle.fixTime || '',
-      lastUpdate: fleetVehicle.lastUpdate || '',
-      fuelLevel: Number(fleetVehicle.fuelLevel) || 0,
-      odometer: Number(fleetVehicle.odometer) || 0,
-      outdated: Boolean(fleetVehicle.outdated),
-      valid: fleetVehicle.valid !== false,
-      altitude: Number(fleetVehicle.altitude) || 0,
-      course: Number(fleetVehicle.course) || 0,
-      accuracy: Number(fleetVehicle.accuracy) || 0,
-      network: fleetVehicle.network,
-      geofenceIds: fleetVehicle.geofenceIds,
-      tripOdometer: Number(fleetVehicle.tripOdometer) || 0,
-      fuelConsumption: Number(fleetVehicle.fuelConsumption) || 0,
-      ignition: Boolean(fleetVehicle.ignition),
-      statusCode: Number(fleetVehicle.statusCode) || 0,
-      coolantTemp: fleetVehicle.coolantTemp,
-      mapIntake: fleetVehicle.mapIntake,
-      rpm: fleetVehicle.rpm,
-      obdSpeed: fleetVehicle.obdSpeed,
-      intakeTemp: fleetVehicle.intakeTemp,
-      fuel: Number(fleetVehicle.fuel) || 0,
-      distance: Number(fleetVehicle.distance) || 0,
-      totalDistance: Number(fleetVehicle.totalDistance) || 0,
-      motion: Boolean(fleetVehicle.motion),
-    };
-  };
+  const statusCounts = useMemo(
+    () => ({
+      all: vehicles.length,
+      online: vehicles.filter((v) => v.status === 'online').length,
+      idle: vehicles.filter((v) => v.status === 'idle').length,
+      offline: vehicles.filter((v) => v.status === 'offline').length,
+    }),
+    [vehicles]
+  );
 
   return (
     <div className="h-full flex flex-col bg-card">
@@ -221,7 +115,7 @@ const VehicleList = ({
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-2 mb-4">
           <Button
             variant={filterStatus === 'all' ? 'default' : 'outline'}
@@ -262,16 +156,50 @@ const VehicleList = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {loading && <p className="text-sm text-muted-foreground">Loading devices...</p>}
+        {loading && (
+          <>
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 border rounded-lg">
+                <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </div>
+            ))}
+          </>
+        )}
         {!loading && error && (
-          <p className="text-sm text-destructive">{error}</p>
+          <div className="flex flex-col items-center py-8 text-center gap-2">
+            <p className="text-sm font-medium text-destructive">Connection error</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+            <Button size="sm" variant="outline" onClick={refresh} className="mt-1">Retry</Button>
+          </div>
+        )}
+        {!loading && !error && filteredVehicles.length === 0 && (
+          <div className="flex flex-col items-center py-10 text-center text-muted-foreground gap-3">
+            <Car className="h-10 w-10 opacity-20" />
+            <div>
+              <p className="text-sm font-medium">No vehicles found</p>
+              <p className="text-xs mt-0.5">
+                {filterStatus === 'all'
+                  ? 'Add a vehicle to get started'
+                  : `No ${filterStatus} vehicles right now`}
+              </p>
+            </div>
+            {filterStatus !== 'all' && (
+              <Button size="sm" variant="ghost" onClick={() => onFilterChange('all')}>
+                Show all
+              </Button>
+            )}
+          </div>
         )}
         {!loading && !error && filteredVehicles.map((vehicle) => (
           <Collapsible key={vehicle.id}>
             <Card
               className={cn(
                 'transition-all border',
-                String(selectedVehicle?.id) === String(vehicle.id)
+                selectedVehicle?.id === vehicle.id
                   ? 'border-primary bg-primary/5 shadow-md'
                   : 'border-border hover:border-primary/50'
               )}
@@ -279,11 +207,10 @@ const VehicleList = ({
               <CollapsibleTrigger asChild>
                 <div
                   className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => onSelectVehicle(getVehicleForSelection(vehicle))}
+                  onClick={() => onSelectVehicle(vehicle)}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {vehicle.imageUrl ? (
-                      /* Image thumbnail with status dot overlay */
                       <div className="relative flex-shrink-0">
                         <img
                           src={vehicle.imageUrl}
@@ -291,7 +218,6 @@ const VehicleList = ({
                           className="h-12 w-16 object-cover rounded-xl shadow-sm"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                         />
-                        {/* Status dot pinned to bottom-right of image */}
                         <span
                           className={cn(
                             'absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-card shadow-sm',
@@ -302,7 +228,7 @@ const VehicleList = ({
                         />
                       </div>
                     ) : (
-                      <StatusBadge status={vehicle.status as VehicleStatus} showLabel={false} size="sm" />
+                      <StatusBadge status={toVehicleStatus(vehicle.status)} showLabel={false} size="sm" />
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-card-foreground truncate">{vehicle.name}</p>
@@ -312,11 +238,11 @@ const VehicleList = ({
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 data-[state=open]:rotate-180" />
                 </div>
               </CollapsibleTrigger>
-              
+
               <CollapsibleContent>
-                <div 
+                <div
                   className="px-3 pb-3 pt-1 space-y-2 border-t border-border/50 cursor-pointer hover:bg-accent/30 transition-colors"
-                  onClick={() => onSelectVehicle(getVehicleForSelection(vehicle))}
+                  onClick={() => onSelectVehicle(vehicle)}
                 >
                   <div className="text-xs space-y-1.5">
                     <p className="text-muted-foreground">
@@ -325,7 +251,6 @@ const VehicleList = ({
                     <p className="text-muted-foreground">
                       Speed:{' '}
                       <span className="text-card-foreground font-medium">
-                        {/* Suppress GPS drift: only show non-zero speed when device reports motion */}
                         {vehicle.motion === false || vehicle.status === 'offline' || vehicle.speed < 0.5
                           ? '0 km/h'
                           : `${Math.round(vehicle.speed * 1.852)} km/h`}
@@ -334,12 +259,17 @@ const VehicleList = ({
                     <p className="text-muted-foreground">
                       Updated: <span className="text-card-foreground font-medium">{getUpdatedText(vehicle)}</span>
                     </p>
+                    {vehicle.status === 'idle' && getIdleLabel(vehicle.id) && (
+                      <p className="inline-flex items-center gap-1 rounded-md bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 font-medium">
+                        ⏱ {getIdleLabel(vehicle.id)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <Button
                       size="sm"
                       className="flex-1"
-                      variant={String(selectedVehicle?.id) === String(vehicle.id) ? "default" : "outline"}
+                      variant={selectedVehicle?.id === vehicle.id ? 'default' : 'outline'}
                       type="button"
                     >
                       View on Map
@@ -353,10 +283,7 @@ const VehicleList = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setEditTarget({
-                          deviceId: Number(vehicle.deviceId ?? vehicle.id),
-                          name: vehicle.name,
-                        });
+                        setEditTarget({ deviceId: vehicle.deviceId, name: vehicle.name });
                         setEditOpen(true);
                       }}
                     >
@@ -367,9 +294,9 @@ const VehicleList = ({
                       variant="outline"
                       className="shrink-0 text-destructive hover:text-destructive"
                       type="button"
-                      disabled={deletingId === String(vehicle.id)}
+                      disabled={deletingId === vehicle.id}
                       title="Delete from Elevatics IoT Platform"
-                      onClick={(e) => void handleDeleteDevice(e, vehicle)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(vehicle); }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -380,6 +307,7 @@ const VehicleList = ({
           </Collapsible>
         ))}
       </div>
+
       <AddVehicleDialog
         open={addVehicleOpen}
         onOpenChange={setAddVehicleOpen}
@@ -392,6 +320,26 @@ const VehicleList = ({
         deviceName={editTarget?.name}
         onVehicleUpdated={refresh}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove <span className="font-semibold text-foreground">"{deleteTarget?.name}"</span> from the Elevatics IoT Platform. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirmed}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

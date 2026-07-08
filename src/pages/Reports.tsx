@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { FleetDataItem } from "@/utils/mapFleetToVehicles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +69,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import useFleetData from "@/hooks/useFleetData";
+import { useFleetDataContext } from "@/contexts/FleetDataContext";
 import { getDrivers } from "@/services/driverService";
 import { getEvents } from "@/services/eventService";
 import { getRouteReport, knotsToKmh } from "@/services/tripService";
@@ -464,7 +465,7 @@ function RouteReportSection({
   fleetData,
   initialDeviceId,
 }: {
-  fleetData: any[];
+  fleetData: FleetDataItem[];
   initialDeviceId?: string;
 }) {
   const { toast } = useToast();
@@ -503,9 +504,9 @@ function RouteReportSection({
 
   const devices = useMemo(
     () =>
-      fleetData.map((v: any) => ({
+      fleetData.map((v) => ({
         id: String(v.deviceId ?? v.id),
-        name: v.name ?? `Device ${v.deviceId ?? v.id}`,
+        name: v.name || `Device ${v.deviceId ?? v.id}`,
       })),
     [fleetData]
   );
@@ -962,7 +963,7 @@ function PaginationBtn({
 export default function Reports() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { fleetData } = useFleetData();
+  const { fleetData } = useFleetDataContext();
   const [activeSubmenu, setActiveSubmenu] = useState<ReportSubmenu>("fleet");
   const [viewReportDialog, setViewReportDialog] = useState(false);
   const [createReportDialog, setCreateReportDialog] = useState(false);
@@ -999,18 +1000,18 @@ export default function Reports() {
 
   const fleetSummary = useMemo(() => {
     const total = fleetData.length;
-    const active = fleetData.filter((v: any) => v.status === "online").length;
+    const active = fleetData.filter((v) => v.status === 'online').length;
     const avgSpeed = total
-      ? Math.round(fleetData.reduce((sum: number, v: any) => sum + (Number(v.speed) || 0), 0) / total)
+      ? Math.round(fleetData.reduce((sum, v) => sum + v.speed, 0) / total)
       : 0;
     const totalDistance = Math.round(
-      fleetData.reduce((sum: number, v: any) => sum + (Number(v.totalDistance) || 0), 0)
+      fleetData.reduce((sum, v) => sum + v.totalDistance, 0)
     );
     return { total, active, avgSpeed, totalDistance };
   }, [fleetData]);
 
   const performanceSummary = useMemo(() => {
-    const totalFuelConsumption = fleetData.reduce((sum: number, v: any) => sum + (Number(v.fuelConsumption) || 0), 0);
+    const totalFuelConsumption = fleetData.reduce((sum, v) => sum + v.fuelConsumption, 0);
     const avgFuelConsumption = fleetData.length ? totalFuelConsumption / fleetData.length : 0;
     const incidentCount = eventRows.filter((r) => r.type.includes("alarm") || r.type.includes("overspeed")).length;
     const estimatedRevenue = fleetSummary.totalDistance * 1.4;
@@ -1021,13 +1022,12 @@ export default function Reports() {
   }, [eventRows, fleetData, fleetSummary.totalDistance]);
 
   const submenuItems = [
-    { id: "fleet" as ReportSubmenu,     label: "Fleet",     icon: BarChart3 },
-    { id: "vehicle" as ReportSubmenu,   label: "Vehicles",  icon: Car },
-    { id: "driver" as ReportSubmenu,    label: "Drivers",   icon: User },
-    { id: "financial" as ReportSubmenu, label: "Financial", icon: DollarSign },
-    { id: "fuel" as ReportSubmenu,      label: "Fuel",      icon: Fuel },
-    { id: "custom" as ReportSubmenu,    label: "Custom",    icon: Settings },
-    { id: "export" as ReportSubmenu,    label: "Export",    icon: Download },
+    { id: "fleet" as ReportSubmenu,   label: "Fleet",    icon: BarChart3 },
+    { id: "vehicle" as ReportSubmenu, label: "Vehicles", icon: Car },
+    { id: "driver" as ReportSubmenu,  label: "Drivers",  icon: User },
+    { id: "fuel" as ReportSubmenu,    label: "Fuel",     icon: Fuel },
+    { id: "custom" as ReportSubmenu,  label: "Custom",   icon: Settings },
+    { id: "export" as ReportSubmenu,  label: "Export",   icon: Download },
   ];
 
   const reportTopics = [
@@ -1083,13 +1083,13 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {fleetData.slice(0, 8).map((v: any) => (
-                  <TableRow key={String(v.id)}>
-                    <TableCell className="font-medium">{v.name ?? `Device ${v.id}`}</TableCell>
-                    <TableCell>{Math.round(Number(v.totalDistance) || 0).toLocaleString()} km</TableCell>
-                    <TableCell>{Math.round(Number(v.fuelConsumption) || 0)} L/100km</TableCell>
+                {fleetData.slice(0, 8).map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-medium">{v.name || `Device ${v.id}`}</TableCell>
+                    <TableCell>{Math.round(v.totalDistance).toLocaleString()} km</TableCell>
+                    <TableCell>{Math.round(v.fuelConsumption)} L/100km</TableCell>
                     <TableCell>
-                      <Badge variant={v.status === "online" ? "secondary" : "outline"}>{v.status || "offline"}</Badge>
+                      <Badge variant={v.status === 'online' ? 'secondary' : 'outline'}>{v.status || 'offline'}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1198,7 +1198,7 @@ export default function Reports() {
               <span className="ml-2">
                 — showing data for device{" "}
                 <span className="text-primary font-medium">
-                  {fleetData.find((v: any) => String(v.deviceId ?? v.id) === initialDeviceId)?.name ?? `#${initialDeviceId}`}
+                  {fleetData.find((v) => String(v.deviceId ?? v.id) === initialDeviceId)?.name ?? `#${initialDeviceId}`}
                 </span>
               </span>
             )}
@@ -1223,6 +1223,28 @@ export default function Reports() {
         <KpiChip label="Online Now"      value={fleetSummary.active}                            icon={<Activity className="h-4 w-4" />} accent />
         <KpiChip label="Avg Speed"       value={`${fleetSummary.avgSpeed} km/h`}                icon={<Gauge className="h-4 w-4" />} />
         <KpiChip label="Total Distance"  value={`${fleetSummary.totalDistance.toLocaleString()} km`} icon={<RouteIcon className="h-4 w-4" />} />
+      </div>
+
+      {/* ── Report Sections nav ── */}
+      <div>
+        <div className="flex flex-wrap gap-1.5 border-b border-border pb-3 mb-4">
+          {submenuItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveSubmenu(id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeSubmenu === id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+        {renderSubmenuContent()}
       </div>
 
       {/* ── Route Report (primary, always shown) ── */}

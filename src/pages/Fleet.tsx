@@ -38,7 +38,7 @@ import GeofenceManager from '@/components/GeofenceManager';
 import { Vehicle } from '@/types/vehicle';
 import { getEvents } from '@/services/eventService';
 import { getDevicePosition } from '@/services/positionService';
-import useFleetData from '@/hooks/useFleetData';
+import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
@@ -75,61 +75,7 @@ export default function Fleet() {
   /** Ref so the fast-poll closure always sees the latest deviceId without restarts */
   const trackedDeviceIdRef = useRef<number | null>(null);
 
-  const { fleetData, loading: fleetLoading, error: fleetError } = useFleetData();
-
-  const liveVehicles = useMemo<Vehicle[]>(
-    () =>
-      fleetData.map((item: any) => {
-        const nowIso = new Date().toISOString();
-        const status =
-          item.status === 'online' || item.status === 'idle' || item.status === 'offline'
-            ? item.status
-            : 'offline';
-        return {
-          id: String(item.id),
-          deviceId: Number(item.deviceId ?? item.id) || 0,
-          protocol: item.protocol || 'traccar',
-          name: item.name || `Device ${item.id}`,
-          plateNumber: item.plateNumber || '-',
-          driver: item.driver || '-',
-          status,
-          location: {
-            lat: Number(item.lat) || 0,
-            lng: Number(item.lng) || 0,
-            address: item.address || 'Live location unavailable',
-          },
-          speed: Number(item.speed) || 0,
-          serverTime: item.serverTime || nowIso,
-          deviceTime: item.deviceTime || nowIso,
-          fixTime: item.fixTime || nowIso,
-          lastUpdate: item.lastUpdate || nowIso,
-          fuelLevel: Number(item.fuelLevel) || 0,
-          odometer: Number(item.odometer) || 0,
-          outdated: Boolean(item.outdated),
-          valid: item.valid !== false,
-          altitude: Number(item.altitude) || 0,
-          course: Number(item.course) || 0,
-          accuracy: Number(item.accuracy) || 0,
-          network: item.network,
-          geofenceIds: item.geofenceIds,
-          tripOdometer: Number(item.tripOdometer) || 0,
-          fuelConsumption: Number(item.fuelConsumption) || 0,
-          ignition: Boolean(item.ignition),
-          statusCode: Number(item.statusCode) || 0,
-          coolantTemp: item.coolantTemp,
-          mapIntake: item.mapIntake,
-          rpm: item.rpm,
-          obdSpeed: item.obdSpeed,
-          intakeTemp: item.intakeTemp,
-          fuel: Number(item.fuel) || 0,
-          distance: Number(item.distance) || 0,
-          totalDistance: Number(item.totalDistance) || 0,
-          motion: Boolean(item.motion),
-          imageUrl: item.imageUrl || undefined,
-        } as Vehicle;
-      }),
-    [fleetData]
-  );
+  const { vehicles: liveVehicles, loading: fleetLoading, error: fleetError } = useFleetDataContext();
 
   // ── Keep device-id ref in sync (no effect restart on every position update) ──
   useEffect(() => {
