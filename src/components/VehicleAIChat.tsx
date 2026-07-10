@@ -28,6 +28,10 @@ import {
   upsertStatusRule,
 } from '@/services/notificationRulesService';
 import { upsertServerRule } from '@/services/serverRuleEngineService';
+import {
+  createCarMarkerElement,
+  getVehicleMarkerColor,
+} from '@/utils/vehicleMapMarker';
 
 type ChatArtifact = {
   csv?: string;
@@ -1016,10 +1020,15 @@ function MapboxMapArtifact({ mapData, vehicle, isExpanded }: {
         m.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 600 });
       }
 
-      // Current vehicle marker
+      // Current vehicle marker — Google Maps–style car (green online / red offline)
       if (vLat !== 0 && vLng !== 0) {
-        const el = document.createElement('div');
-        el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#2563eb;border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);';
+        const el = createCarMarkerElement({
+          color: getVehicleMarkerColor(vehicle.status),
+          course: Number(vehicle.course) || 0,
+          size: 26,
+        });
+        el.style.pointerEvents = 'auto';
+        el.style.cursor = 'pointer';
         new mapboxgl.Marker(el)
           .setLngLat([vLng, vLat])
           .setPopup(new mapboxgl.Popup({ offset: 14 }).setText(vehicle.name))

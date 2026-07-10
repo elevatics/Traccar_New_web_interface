@@ -19,6 +19,11 @@ import { getDevices } from '@/services/deviceService';
 import { getRouteReport } from '@/services/tripService';
 import { useToast } from '@/hooks/use-toast';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
+import {
+  createCarMarkerElement,
+  setCarMarkerCourse,
+  VEHICLE_MARKER_STATUS_COLORS,
+} from '@/utils/vehicleMapMarker';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -117,34 +122,12 @@ function buildLineFC(coords: [number,number][]) {
 
 // ── Marker SVG ────────────────────────────────────────────────────────────────
 function createMarkerEl(): HTMLDivElement {
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'width:48px;height:48px;position:relative;pointer-events:none;';
-
-  const pulse = document.createElement('div');
-  pulse.style.cssText = `
-    position:absolute;inset:-8px;border-radius:50%;
-    background:radial-gradient(circle,rgba(37,99,235,0.3) 0%,transparent 70%);
-    animation:rp-pulse 2s ease-in-out infinite;
-  `;
-
-  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('width','48'); svg.setAttribute('height','48'); svg.setAttribute('viewBox','0 0 48 48');
-  svg.style.cssText = 'position:absolute;inset:0;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4));transition:transform 0.15s linear;';
-  svg.innerHTML = `
-    <defs>
-      <radialGradient id="rg1" cx="40%" cy="30%" r="60%">
-        <stop offset="0%" stop-color="#3b82f6"/>
-        <stop offset="100%" stop-color="#1d4ed8"/>
-      </radialGradient>
-    </defs>
-    <circle cx="24" cy="24" r="20" fill="url(#rg1)" stroke="white" stroke-width="3"/>
-    <path d="M24 9 L30 35 L24 30 L18 35 Z" fill="white" opacity="0.95"/>
-    <circle cx="24" cy="24" r="3" fill="white" opacity="0.6"/>
-  `;
-
-  wrap.appendChild(pulse);
-  wrap.appendChild(svg);
-  return wrap;
+  return createCarMarkerElement({
+    color: VEHICLE_MARKER_STATUS_COLORS.online,
+    size: 28,
+    pulse: true,
+    pulseColor: VEHICLE_MARKER_STATUS_COLORS.online,
+  });
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -263,8 +246,7 @@ export default function Replay() {
     } else {
       markerRef.current.setLngLat([lng, lat]);
     }
-    const svg = markerElRef.current?.querySelector('svg') as HTMLElement | null;
-    if (svg) svg.style.transform = `rotate(${course}deg)`;
+    if (markerElRef.current) setCarMarkerCourse(markerElRef.current, course);
   }
 
   // ── Update tail polyline ───────────────────────────────────────────────────

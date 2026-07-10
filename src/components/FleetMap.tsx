@@ -10,6 +10,11 @@ import VehicleAIChat from './VehicleAIChat';
 import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useTrackingPrefs } from '@/contexts/TrackingPrefsContext';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
+import {
+  applyCarMarkerInner,
+  getVehicleMarkerColor,
+  VEHICLE_MARKER_STATUS_COLORS,
+} from '@/utils/vehicleMapMarker';
 
 interface FleetMapProps {
   vehicles: Vehicle[];
@@ -19,7 +24,7 @@ interface FleetMapProps {
   apiToken: string;
   /** Optional live trip route to draw as a polyline on the map */
   liveRoute?: { lat: number; lng: number }[];
-  /** ID of the vehicle currently being tracked — renders as a navigation arrow */
+  /** ID of the vehicle currently being tracked — gets a pulse ring on the car marker */
   trackedVehicleId?: string;
   /** Per-page sessionStorage key so dashboard and fleet maps do not share camera state */
   mapStorageKey?: string;
@@ -92,14 +97,8 @@ type MarkerEntry = {
   lastCourse: number;
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  online: 'hsl(142, 71%, 45%)',
-  idle: 'hsl(45, 93%, 47%)',
-  offline: 'hsl(0, 84%, 60%)',
-  unknown: 'hsl(215, 16%, 47%)',
-};
-
-const getStatusColor = (status?: string) => STATUS_COLORS[status || ''] || STATUS_COLORS.unknown;
+const STATUS_COLORS = VEHICLE_MARKER_STATUS_COLORS;
+const getStatusColor = getVehicleMarkerColor;
 
 const DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY = 'fleet_map_last_view';
 
@@ -233,7 +232,7 @@ const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
   };
 };
 
-// ── Tracked-vehicle arrow marker helpers ─────────────────────────────────────
+// ── Vehicle car marker helpers ───────────────────────────────────────────────
 
 /** Inject the pulse-ring keyframe once per page load */
 let _trackedPulseInjected = false;
@@ -251,38 +250,13 @@ function ensureTrackedPulseStyle() {
   document.head.appendChild(style);
 }
 
-function applyArrowInner(innerEl: HTMLDivElement, color: string, course: number) {
-  innerEl.innerHTML = '';
-  innerEl.style.background = color;
-  innerEl.style.display = 'flex';
-  innerEl.style.alignItems = 'center';
-  innerEl.style.justifyContent = 'center';
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '20');
-  svg.setAttribute('height', '20');
-  svg.setAttribute('viewBox', '0 0 48 48');
-  (svg as SVGElement).style.cssText = `transform:rotate(${course}deg);transition:transform 0.15s linear;display:block;`;
-  svg.innerHTML = `<path d="M24 7 L32 38 L24 31 L16 38 Z" fill="white" opacity="0.95"/>`;
-  innerEl.appendChild(svg);
-}
-
-function applyCircleInner(innerEl: HTMLDivElement, color: string, name: string) {
-  innerEl.innerHTML = '';
-  innerEl.style.background = color;
-  innerEl.style.display = 'flex';
-  innerEl.style.alignItems = 'center';
-  innerEl.style.justifyContent = 'center';
-  innerEl.style.fontWeight = 'bold';
-  innerEl.style.color = 'white';
-  innerEl.style.fontSize = '12px';
-  innerEl.textContent = name?.charAt(0) || '?';
-}
-
 function addPulseRing(markerElement: HTMLDivElement, color: string): HTMLDivElement {
   const ring = document.createElement('div');
   ring.dataset.role = 'pulse-ring';
   ring.style.cssText = `
-    position:absolute;inset:-7px;border-radius:50%;
+    position:absolute;left:50%;top:50%;
+    width:48px;height:48px;margin-left:-24px;margin-top:-24px;
+    border-radius:50%;
     border:2px solid ${color};
     animation:fleet-pulse 1.8s ease-out infinite;
     pointer-events:none;
@@ -541,23 +515,23 @@ const FleetMap = ({
       if (!existingEntry) {
         const markerElement = document.createElement('div');
         markerElement.className = 'vehicle-marker';
-        markerElement.style.width = '32px';
-        markerElement.style.height = '32px';
+        markerElement.style.width = '26px';
+        markerElement.style.height = '53px';
         markerElement.style.cursor = 'pointer';
         markerElement.style.position = 'relative';
+        markerElement.style.overflow = 'visible';
 
         const innerElement = document.createElement('div');
-        innerElement.style.width = '100%';
-        innerElement.style.height = '100%';
-        innerElement.style.border = '3px solid white';
-        innerElement.style.borderRadius = '50%';
-        innerElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
 
         const isTracked = markerId === trackedVehicleId;
         const course = Number(fleetVehicle.course) || 0;
 
-        // All vehicles show as directional arrow markers (green=online, red=offline)
-        applyArrowInner(innerElement, getStatusColor(fleetVehicle.status), course);
+        // Classic Google Maps–style car (green=online, red=offline)
+        applyCarMarkerInner(innerElement, {
+          color: getStatusColor(fleetVehicle.status),
+          course,
+          size: 26,
+        });
         // Only the actively tracked vehicle gets the pulse ring
         if (isTracked) {
           addPulseRing(markerElement, getStatusColor(fleetVehicle.status));
@@ -609,11 +583,14 @@ const FleetMap = ({
         addPulseRing(existingEntry.element, color);
       } else if (!isTracked && hasPulse) {
         removePulseRing(existingEntry.element);
+      } else if (isTracked && hasPulse && existingEntry.lastStatus !== fleetVehicle.status) {
+        const ring = existingEntry.element.querySelector('[data-role="pulse-ring"]') as HTMLDivElement | null;
+        if (ring) ring.style.borderColor = color;
       }
 
-      // Update status color and arrow direction for all vehicles
+      // Update status color and car heading for all vehicles
       if (existingEntry.lastStatus !== fleetVehicle.status || course !== existingEntry.lastCourse) {
-        applyArrowInner(existingEntry.innerElement, color, course);
+        applyCarMarkerInner(existingEntry.innerElement, { color, course, size: 26 });
         existingEntry.lastStatus = fleetVehicle.status;
         existingEntry.lastCourse = course;
       } else {
