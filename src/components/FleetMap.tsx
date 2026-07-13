@@ -11,9 +11,11 @@ import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useTrackingPrefs } from '@/contexts/TrackingPrefsContext';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
 import {
-  applyCarMarkerInner,
-  getVehicleMarkerColor,
-  VEHICLE_MARKER_STATUS_COLORS,
+  buildFleetVehiclesGeoJSON,
+  ensureFleetVehicleLayers,
+  FLEET_VEHICLES_LAYER,
+  FLEET_VEHICLES_SOURCE,
+  setFleetVehiclesData,
 } from '@/utils/vehicleMapMarker';
 
 interface FleetMapProps {
@@ -84,21 +86,6 @@ type FleetPoint = {
   totalDistance?: number;
   motion?: boolean;
 };
-type MarkerEntry = {
-  marker: mapboxgl.Marker;
-  element: HTMLDivElement;
-  innerElement: HTMLDivElement;
-  popup: mapboxgl.Popup;
-  lastLat: number;
-  lastLng: number;
-  lastStatus: string;
-  lastName: string;
-  isArrow: boolean;
-  lastCourse: number;
-};
-
-const STATUS_COLORS = VEHICLE_MARKER_STATUS_COLORS;
-const getStatusColor = getVehicleMarkerColor;
 
 const DEFAULT_FLEET_MAP_VIEW_STORAGE_KEY = 'fleet_map_last_view';
 
@@ -232,46 +219,6 @@ const createFallbackVehicle = (fleetVehicle: FleetPoint): Vehicle => {
   };
 };
 
-// ── Vehicle car marker helpers ───────────────────────────────────────────────
-
-/** Inject the pulse-ring keyframe once per page load */
-let _trackedPulseInjected = false;
-function ensureTrackedPulseStyle() {
-  if (_trackedPulseInjected) return;
-  _trackedPulseInjected = true;
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes fleet-pulse {
-      0%   { transform: scale(1);   opacity: 0.55; }
-      50%  { transform: scale(1.55); opacity: 0.15; }
-      100% { transform: scale(1);   opacity: 0.55; }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-function addPulseRing(markerElement: HTMLDivElement, color: string): HTMLDivElement {
-  const ring = document.createElement('div');
-  ring.dataset.role = 'pulse-ring';
-  ring.style.cssText = `
-    position:absolute;left:50%;top:50%;
-    width:48px;height:48px;margin-left:-24px;margin-top:-24px;
-    border-radius:50%;
-    border:2px solid ${color};
-    animation:fleet-pulse 1.8s ease-out infinite;
-    pointer-events:none;
-  `;
-  markerElement.style.overflow = 'visible';
-  markerElement.appendChild(ring);
-  return ring;
-}
-
-function removePulseRing(markerElement: HTMLDivElement) {
-  const ring = markerElement.querySelector('[data-role="pulse-ring"]');
-  if (ring) markerElement.removeChild(ring);
-  markerElement.style.overflow = '';
-}
-
 const LIVE_ROUTE_SOURCE = 'live-trip-route-src';
 const LIVE_ROUTE_LAYER  = 'live-trip-route-line';
 const ALL_TAILS_SOURCE  = 'all-vehicle-tails-src';
@@ -293,7 +240,10 @@ const FleetMap = ({
 }: FleetMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const markers = useRef<Record<string, MarkerEntry>>({});
+  /** Latest selectable Vehicle objects keyed by id (for symbol-layer clicks). */
+  const vehicleClickDataRef = useRef<Record<string, Vehicle>>({});
+  /** Latest geo points used to patch tracked vehicle without full rebuild. */
+  const fleetPointsRef = useRef<FleetPoint[]>([]);
   /** True after we've run fitBounds for live Traccar positions (once per map instance unless re-center). */
   const hasFittedLiveFleet = useRef(false);
   /** One-time framing from parent `vehicles` while API positions are still loading. */
@@ -384,8 +334,6 @@ const FleetMap = ({
 
     mapboxgl.accessToken = apiToken;
 
-    ensureTrackedPulseStyle();
-
     const vehicleBootstrap = approximateViewFromCoords(
       vehiclesForInitRef.current.map((v) => ({
         lat: v.location.lat,
@@ -426,8 +374,6 @@ const FleetMap = ({
     return () => {
       if (persistTimer) clearTimeout(persistTimer);
       map.current?.off('moveend', schedulePersistView);
-      Object.values(markers.current).forEach((entry) => entry.marker.remove());
-      markers.current = {};
       map.current?.remove();
     };
   }, [apiToken, mapStorageKey]);
@@ -454,12 +400,13 @@ const FleetMap = ({
 
   useEffect(() => {
     if (!map.current) return;
+    const mapInstance = map.current;
 
-    const nextIds = new Set<string>();
+    const clickData: Record<string, Vehicle> = {};
+    const points: FleetPoint[] = [];
 
     (fleetData as FleetPoint[]).forEach((fleetVehicle) => {
       const markerId = String(fleetVehicle.id);
-      nextIds.add(markerId);
       const matchedVehicle = vehiclesById.get(markerId);
       const selectedVehicleData = matchedVehicle
         ? {
@@ -510,111 +457,82 @@ const FleetMap = ({
             motion: fleetVehicle.motion ?? matchedVehicle.motion,
           }
         : createFallbackVehicle(fleetVehicle);
-      const existingEntry = markers.current[markerId];
 
-      if (!existingEntry) {
-        const markerElement = document.createElement('div');
-        markerElement.className = 'vehicle-marker';
-        markerElement.style.width = '26px';
-        markerElement.style.height = '53px';
-        markerElement.style.cursor = 'pointer';
-        markerElement.style.position = 'relative';
-        markerElement.style.overflow = 'visible';
-
-        const innerElement = document.createElement('div');
-
-        const isTracked = markerId === trackedVehicleId;
-        const course = Number(fleetVehicle.course) || 0;
-
-        // Classic Google Maps–style car (green=online, red=offline)
-        applyCarMarkerInner(innerElement, {
-          color: getStatusColor(fleetVehicle.status),
-          course,
-          size: 26,
-        });
-        // Only the actively tracked vehicle gets the pulse ring
-        if (isTracked) {
-          addPulseRing(markerElement, getStatusColor(fleetVehicle.status));
-        }
-
-        markerElement.appendChild(innerElement);
-
-        const popup = new mapboxgl.Popup({ offset: 25 }).setText(fleetVehicle.name);
-        const marker = new mapboxgl.Marker(markerElement)
-          .setLngLat([fleetVehicle.lng, fleetVehicle.lat])
-          .setPopup(popup)
-          .addTo(map.current!);
-
-        markerElement.onclick = () => {
-          onSelectVehicle(selectedVehicleData);
-        };
-
-        markers.current[markerId] = {
-          marker,
-          element: markerElement,
-          innerElement,
-          popup,
-          lastLat: fleetVehicle.lat,
-          lastLng: fleetVehicle.lng,
-          lastStatus: fleetVehicle.status,
-          lastName: fleetVehicle.name,
-          isArrow: true,
-          lastCourse: course,
-        };
-        return;
-      }
-
-      if (
-        existingEntry.lastLat !== fleetVehicle.lat ||
-        existingEntry.lastLng !== fleetVehicle.lng
-      ) {
-        existingEntry.marker.setLngLat([fleetVehicle.lng, fleetVehicle.lat]);
-        existingEntry.lastLat = fleetVehicle.lat;
-        existingEntry.lastLng = fleetVehicle.lng;
-      }
-
-      const isTracked = markerId === trackedVehicleId;
-      const course = Number(fleetVehicle.course) || 0;
-      const color = getStatusColor(fleetVehicle.status);
-
-      // Manage pulse ring based on tracked state
-      const hasPulse = !!existingEntry.element.querySelector('[data-role="pulse-ring"]');
-      if (isTracked && !hasPulse) {
-        addPulseRing(existingEntry.element, color);
-      } else if (!isTracked && hasPulse) {
-        removePulseRing(existingEntry.element);
-      } else if (isTracked && hasPulse && existingEntry.lastStatus !== fleetVehicle.status) {
-        const ring = existingEntry.element.querySelector('[data-role="pulse-ring"]') as HTMLDivElement | null;
-        if (ring) ring.style.borderColor = color;
-      }
-
-      // Update status color and car heading for all vehicles
-      if (existingEntry.lastStatus !== fleetVehicle.status || course !== existingEntry.lastCourse) {
-        applyCarMarkerInner(existingEntry.innerElement, { color, course, size: 26 });
-        existingEntry.lastStatus = fleetVehicle.status;
-        existingEntry.lastCourse = course;
-      } else {
-        // Just update SVG rotation if only course changed
-        const svg = existingEntry.innerElement.querySelector('svg') as SVGElement | null;
-        if (svg && course !== existingEntry.lastCourse) {
-          svg.style.transform = `rotate(${course}deg)`;
-          existingEntry.lastCourse = course;
-        }
-      }
-
-      existingEntry.element.style.cursor = 'pointer';
-      existingEntry.element.onclick = () => {
-        onSelectVehicle(selectedVehicleData);
-      };
+      clickData[markerId] = selectedVehicleData;
+      points.push(fleetVehicle);
     });
 
-    Object.entries(markers.current).forEach(([markerId, markerEntry]) => {
-      if (!nextIds.has(markerId)) {
-        markerEntry.marker.remove();
-        delete markers.current[markerId];
-      }
-    });
-  }, [fleetData, onSelectVehicle, vehiclesById, trackedVehicleId]);
+    vehicleClickDataRef.current = clickData;
+    fleetPointsRef.current = points;
+
+    const geojson = buildFleetVehiclesGeoJSON(points, trackedVehicleId);
+
+    let cancelled = false;
+    const sync = async () => {
+      await ensureFleetVehicleLayers(mapInstance);
+      if (cancelled || !map.current) return;
+      setFleetVehiclesData(mapInstance, geojson);
+    };
+
+    const run = () => {
+      void sync();
+    };
+    if (mapInstance.isStyleLoaded()) run();
+    else mapInstance.once('load', run);
+
+    // After setStyle, images/layers are wiped — rebuild when style finishes loading
+    const onStyleLoad = () => {
+      void sync();
+    };
+    mapInstance.on('style.load', onStyleLoad);
+
+    return () => {
+      cancelled = true;
+      mapInstance.off('style.load', onStyleLoad);
+      mapInstance.off('load', run);
+    };
+  }, [fleetData, vehiclesById, trackedVehicleId]);
+
+  // Symbol-layer click → select vehicle (same behavior as old HTML markers)
+  useEffect(() => {
+    if (!map.current) return;
+    const mapInstance = map.current;
+
+    const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+      const feature = e.features?.[0];
+      const id = feature?.properties?.id;
+      if (id == null) return;
+      const vehicle = vehicleClickDataRef.current[String(id)];
+      if (vehicle) onSelectVehicle(vehicle);
+    };
+    const onEnter = () => {
+      mapInstance.getCanvas().style.cursor = 'pointer';
+    };
+    const onLeave = () => {
+      mapInstance.getCanvas().style.cursor = '';
+    };
+
+    const unbind = () => {
+      mapInstance.off('click', FLEET_VEHICLES_LAYER, onClick);
+      mapInstance.off('mouseenter', FLEET_VEHICLES_LAYER, onEnter);
+      mapInstance.off('mouseleave', FLEET_VEHICLES_LAYER, onLeave);
+    };
+    const bind = () => {
+      unbind();
+      if (!mapInstance.getLayer(FLEET_VEHICLES_LAYER)) return;
+      mapInstance.on('click', FLEET_VEHICLES_LAYER, onClick);
+      mapInstance.on('mouseenter', FLEET_VEHICLES_LAYER, onEnter);
+      mapInstance.on('mouseleave', FLEET_VEHICLES_LAYER, onLeave);
+    };
+
+    bind();
+    mapInstance.on('style.load', bind);
+
+    return () => {
+      unbind();
+      mapInstance.off('style.load', bind);
+    };
+  }, [onSelectVehicle]);
 
   // Re-apply zoom when defaultZoom preference changes while map is already loaded
   useEffect(() => {
@@ -882,30 +800,26 @@ const FleetMap = ({
   }, [allVehicleTails]);
 
   // ── Fast tracked-vehicle position update (1 s cadence from Fleet.tsx) ───────
-  // Directly moves the marker and pans the map without waiting for the general
-  // fleetData poll — gives the "real-time" feel the user expects.
+  // Patches the symbol-layer GeoJSON and pans without waiting for the general poll.
   useEffect(() => {
-    if (!trackedVehiclePosition || !trackedVehicleId) return;
+    if (!trackedVehiclePosition || !trackedVehicleId || !map.current) return;
     const { lat, lng, course } = trackedVehiclePosition;
     if (lat === 0 && lng === 0) return;
 
-    // Move the marker directly
-    const entry = markers.current[trackedVehicleId];
-    if (entry) {
-      if (entry.lastLat !== lat || entry.lastLng !== lng) {
-        entry.marker.setLngLat([lng, lat]);
-        entry.lastLat = lat;
-        entry.lastLng = lng;
-      }
-      if (course !== entry.lastCourse) {
-        const svg = entry.innerElement.querySelector('svg') as SVGElement | null;
-        if (svg) svg.style.transform = `rotate(${course}deg)`;
-        entry.lastCourse = course;
-      }
+    const points = fleetPointsRef.current.map((p) =>
+      String(p.id) === trackedVehicleId
+        ? { ...p, lat, lng, course }
+        : p
+    );
+    fleetPointsRef.current = points;
+    if (map.current.getSource(FLEET_VEHICLES_SOURCE)) {
+      setFleetVehiclesData(
+        map.current,
+        buildFleetVehiclesGeoJSON(points, trackedVehicleId),
+      );
     }
 
-    // Pan map if followTracked
-    if (followTracked && map.current) {
+    if (followTracked) {
       map.current.easeTo({ center: [lng, lat], duration: 600 });
     }
   }, [trackedVehiclePosition, trackedVehicleId, followTracked]);

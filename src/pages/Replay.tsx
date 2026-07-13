@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
 import {
   createCarMarkerElement,
-  setCarMarkerCourse,
+  VEHICLE_MARKER_MAPBOX_OPTIONS,
   VEHICLE_MARKER_STATUS_COLORS,
 } from '@/utils/vehicleMapMarker';
 
@@ -124,7 +124,6 @@ function buildLineFC(coords: [number,number][]) {
 function createMarkerEl(): HTMLDivElement {
   return createCarMarkerElement({
     color: VEHICLE_MARKER_STATUS_COLORS.online,
-    size: 28,
     pulse: true,
     pulseColor: VEHICLE_MARKER_STATUS_COLORS.online,
   });
@@ -241,12 +240,17 @@ export default function Replay() {
     if (!markerRef.current) {
       const el = createMarkerEl();
       markerElRef.current = el;
-      markerRef.current = new mapboxgl.Marker({ element: el, rotationAlignment: 'map' })
-        .setLngLat([lng, lat]).addTo(mapRef.current);
+      markerRef.current = new mapboxgl.Marker({
+        element: el,
+        ...VEHICLE_MARKER_MAPBOX_OPTIONS,
+      })
+        .setLngLat([lng, lat])
+        .setRotation(course)
+        .addTo(mapRef.current);
     } else {
       markerRef.current.setLngLat([lng, lat]);
+      markerRef.current.setRotation(course);
     }
-    if (markerElRef.current) setCarMarkerCourse(markerElRef.current, course);
   }
 
   // ── Update tail polyline ───────────────────────────────────────────────────

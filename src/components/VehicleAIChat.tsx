@@ -31,6 +31,7 @@ import { upsertServerRule } from '@/services/serverRuleEngineService';
 import {
   createCarMarkerElement,
   getVehicleMarkerColor,
+  VEHICLE_MARKER_MAPBOX_OPTIONS,
 } from '@/utils/vehicleMapMarker';
 
 type ChatArtifact = {
@@ -1022,15 +1023,18 @@ function MapboxMapArtifact({ mapData, vehicle, isExpanded }: {
 
       // Current vehicle marker — Google Maps–style car (green online / red offline)
       if (vLat !== 0 && vLng !== 0) {
+        const course = Number(vehicle.course) || 0;
         const el = createCarMarkerElement({
           color: getVehicleMarkerColor(vehicle.status),
-          course: Number(vehicle.course) || 0,
-          size: 26,
         });
         el.style.pointerEvents = 'auto';
         el.style.cursor = 'pointer';
-        new mapboxgl.Marker(el)
+        new mapboxgl.Marker({
+          element: el,
+          ...VEHICLE_MARKER_MAPBOX_OPTIONS,
+        })
           .setLngLat([vLng, vLat])
+          .setRotation(course)
           .setPopup(new mapboxgl.Popup({ offset: 14 }).setText(vehicle.name))
           .addTo(m);
       }
