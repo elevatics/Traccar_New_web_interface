@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { useTheme } from 'next-themes';
 import { Vehicle } from '@/types/vehicle';
 import { Button } from '@/components/ui/button';
 import { Map as MapIcon, Satellite, Layers, Locate } from 'lucide-react';
@@ -47,6 +48,21 @@ interface FleetMapProps {
 }
 
 type MapStyle = 'streets' | 'satellite' | 'traffic';
+
+/** Mapbox style URL for the selected basemap + app color theme. */
+function resolveMapStyleUrl(style: MapStyle, isDark: boolean): string {
+  if (style === 'satellite') return 'mapbox://styles/mapbox/satellite-streets-v12';
+  if (isDark) return 'mapbox://styles/mapbox/dark-v11';
+  return 'mapbox://styles/mapbox/streets-v12';
+}
+
+function isDocumentDark(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+}
+
+/** Allow fitBounds to zoom in enough that nearby vehicles separate on screen. */
+const FLEET_FIT_MAX_ZOOM = 16;
+
 type FleetPoint = {
   id: string | number;
   deviceId?: number;
@@ -162,8 +178,32 @@ function approximateViewFromCoords(coords: LatLng[]): { center: [number, number]
   const lngSpan = Math.max(1e-6, maxLng - minLng);
   const span = Math.max(latSpan, lngSpan, pts.length === 1 ? 0.06 : 0);
   const zoom =
-    span > 40 ? 3.5 : span > 20 ? 4.5 : span > 10 ? 5.5 : span > 5 ? 6.5 : span > 2 ? 7.5 : span > 1 ? 8.5 : span > 0.5 ? 9.5 : span > 0.2 ? 10.5 : span > 0.1 ? 11.5 : 12.5;
-  return { center, zoom: Math.min(14, Math.max(4, zoom)) };
+    span > 40
+      ? 3.5
+      : span > 20
+        ? 4.5
+        : span > 10
+          ? 5.5
+          : span > 5
+            ? 6.5
+            : span > 2
+              ? 7.5
+              : span > 1
+                ? 8.5
+                : span > 0.5
+                  ? 9.5
+                  : span > 0.2
+                    ? 10.5
+                    : span > 0.1
+                      ? 12
+                      : span > 0.05
+                        ? 13.5
+                        : span > 0.02
+                          ? 14.5
+                          : span > 0.01
+                            ? 15.5
+                            : 16;
+  return { center, zoom: Math.min(FLEET_FIT_MAX_ZOOM, Math.max(4, zoom)) };
 }
 
 const toVehicleStatus = (status?: string): Vehicle['status'] => {
@@ -248,10 +288,13 @@ const FleetMap = ({
   const hasFittedLiveFleet = useRef(false);
   /** One-time framing from parent `vehicles` while API positions are still loading. */
   const hasFittedVehiclePreview = useRef(false);
-  /** Avoid calling setStyle on mount — it reloads the style and resets camera after auto-fit. */
-  const skipInitialStyleReload = useRef(true);
+  /** Last Mapbox style URL applied — skip redundant setStyle that would reset camera. */
+  const lastStyleUrlRef = useRef<string | null>(null);
+  /** Tracks mapStyle + dark so we reload when either changes (including traffic overlay). */
+  const appliedStyleKeyRef = useRef<string | null>(null);
   const vehiclesForInitRef = useRef(vehicles);
   vehiclesForInitRef.current = vehicles;
+  const { resolvedTheme } = useTheme();
   const [mapStyle, setMapStyle] = useState<MapStyle>('streets');
   const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
@@ -328,7 +371,6 @@ const FleetMap = ({
   useEffect(() => {
     if (!mapContainer.current || !apiToken) return;
 
-    skipInitialStyleReload.current = true;
     hasFittedLiveFleet.current = false;
     hasFittedVehiclePreview.current = false;
 
@@ -342,9 +384,13 @@ const FleetMap = ({
     );
     const storedView = readStoredFleetMapView(mapStorageKey);
     const bootstrapView = vehicleBootstrap ?? storedView ?? US_MAP_VIEW;
+    const initialDark = isDocumentDark();
+    const initialStyleUrl = resolveMapStyleUrl('streets', initialDark);
+    lastStyleUrlRef.current = initialStyleUrl;
+    appliedStyleKeyRef.current = `streets:${initialDark}`;
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: initialStyleUrl,
       center: bootstrapView.center,
       zoom: bootstrapView.zoom,
       pitch: 0,
@@ -534,12 +580,14 @@ const FleetMap = ({
     };
   }, [onSelectVehicle]);
 
-  // Re-apply zoom when defaultZoom preference changes while map is already loaded
+  // Re-apply zoom only when the defaultZoom preference itself changes
+  const prevDefaultZoomRef = useRef(prefs.defaultZoom);
   useEffect(() => {
     if (!map.current || !map.current.loaded()) return;
-    // Only adjust zoom if we're not currently zoomed in on a specific vehicle
+    if (prevDefaultZoomRef.current === prefs.defaultZoom) return;
+    prevDefaultZoomRef.current = prefs.defaultZoom;
     if (!selectedVehicle) {
-      map.current.easeTo({ zoom: prefs.defaultZoom, duration: 600 });
+      map.current.easeTo({ zoom: Math.max(prefs.defaultZoom, 15), duration: 600 });
     }
   }, [prefs.defaultZoom, selectedVehicle]);
 
@@ -549,7 +597,7 @@ const FleetMap = ({
 
     map.current.flyTo({
       center: [selectedVehicle.location.lng, selectedVehicle.location.lat],
-      zoom: Math.max(prefs.defaultZoom, 13), // at least street-level when selecting
+      zoom: Math.max(prefs.defaultZoom, 15), // street-level when selecting so markers do not stack
       duration: 1500,
     });
   }, [selectedVehicle, prefs.autoCenter, prefs.defaultZoom]);
@@ -576,7 +624,7 @@ const FleetMap = ({
       const { lng, lat } = coords[0];
       map.current.easeTo({
         center: [lng, lat],
-        zoom: prefs.defaultZoom,
+        zoom: Math.max(prefs.defaultZoom, 15),
         duration,
       });
       return;
@@ -584,8 +632,9 @@ const FleetMap = ({
     const bounds = new mapboxgl.LngLatBounds();
     coords.forEach(({ lat, lng }) => bounds.extend([lng, lat]));
     map.current.fitBounds(bounds, {
-      padding: { top: 80, bottom: 80, left: 80, right: 80 },
-      maxZoom: prefs.defaultZoom,
+      padding: { top: 56, bottom: 56, left: 56, right: 56 },
+      // Cap only as a ceiling — tight clusters zoom in enough to separate car icons
+      maxZoom: Math.max(prefs.defaultZoom, FLEET_FIT_MAX_ZOOM),
       duration,
     });
   };
@@ -634,26 +683,23 @@ const FleetMap = ({
   }, [fleetData, vehicles, selectedVehicle]);
 
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !resolvedTheme) return;
 
-    if (skipInitialStyleReload.current) {
-      skipInitialStyleReload.current = false;
-      return;
-    }
+    const isDark = resolvedTheme === 'dark';
+    const styleUrl = resolveMapStyleUrl(mapStyle, isDark);
+    const styleKey = `${mapStyle}:${isDark}`;
 
-    const styleUrls = {
-      streets: 'mapbox://styles/mapbox/streets-v12',
-      satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-      traffic: 'mapbox://styles/mapbox/streets-v12',
-    };
+    // Avoid reloading the same basemap+mode (setStyle resets camera / layers)
+    if (appliedStyleKeyRef.current === styleKey) return;
+    appliedStyleKeyRef.current = styleKey;
+    lastStyleUrlRef.current = styleUrl;
 
-    map.current.setStyle(styleUrls[mapStyle]);
+    map.current.setStyle(styleUrl);
 
     if (mapStyle === 'traffic') {
-      map.current.on('style.load', () => {
+      map.current.once('style.load', () => {
         if (!map.current) return;
-        
-        // Add traffic layer
+
         if (!map.current.getLayer('traffic')) {
           map.current.addLayer({
             id: 'traffic',
@@ -678,7 +724,7 @@ const FleetMap = ({
         }
       });
     }
-  }, [mapStyle]);
+  }, [mapStyle, resolvedTheme]);
 
   // Draw / update live trip route polyline on map
   useEffect(() => {
@@ -880,7 +926,7 @@ const FleetMap = ({
             fitToDevices(800);
           }}
           className="shadow-lg h-8 px-2 sm:px-3"
-          title={`Fit map to all devices (zoom ${prefs.defaultZoom})`}
+          title={`Fit map to all devices (up to zoom ${Math.max(prefs.defaultZoom, FLEET_FIT_MAX_ZOOM)})`}
         >
           <Locate className="h-4 w-4 sm:mr-1.5" />
           <span className="hidden sm:inline text-xs">Re-center</span>

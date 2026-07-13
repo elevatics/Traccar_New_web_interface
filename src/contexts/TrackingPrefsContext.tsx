@@ -22,7 +22,7 @@ export const DEFAULT_PREFS: TrackingPrefs = {
   fuelUnit: "liters",
   volumeUnit: "liters",
   coordinateFormat: "decimal",
-  defaultZoom: 13,
+  defaultZoom: 15,
   timezone: "UTC",
   showOdometer: false,
   showFuelConsumption: false,
