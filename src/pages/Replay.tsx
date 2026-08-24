@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getDevices } from '@/services/deviceService';
 import { getRouteReport } from '@/services/tripService';
+import { useTrackingPrefs, fmtSpeed } from '@/contexts/TrackingPrefsContext';
 import { useToast } from '@/hooks/use-toast';
 import { US_MAP_VIEW } from '@/utils/mapDefaults';
 import {
@@ -99,7 +100,6 @@ function lerpAngle(a: number, b: number, t: number) {
   while (d < -180) d += 360;
   return a + d * Math.max(0, Math.min(1,t));
 }
-function knotsToKmh(k: number) { return Math.round(k * 1.852); }
 function fmtTime(iso?: string) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -132,6 +132,7 @@ function createMarkerEl(): HTMLDivElement {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function Replay() {
   const { toast } = useToast();
+  const { prefs } = useTrackingPrefs();
 
   // Filter UI state
   const [devices, setDevices]               = useState<DeviceOption[]>([]);
@@ -301,7 +302,7 @@ export default function Replay() {
 
     const p0 = posArr[seg], p1 = posArr[seg+1];
     moveMarker(lerp(p0.latitude,p1.latitude,frac), lerp(p0.longitude,p1.longitude,frac), lerpAngle(p0.course,p1.course,frac));
-    setDisplaySpeed(knotsToKmh(lerp(p0.speed, p1.speed, frac)));
+    setDisplaySpeed(lerp(p0.speed, p1.speed, frac));
 
     // Only update tail & step counter when crossing a segment boundary
     if (seg !== lastTailSegRef.current) {
@@ -675,8 +676,7 @@ export default function Replay() {
 
                     <div className="flex items-center gap-1.5 bg-primary/8 border border-primary/20 rounded-lg px-2.5 py-1">
                       <Gauge className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-xs font-bold tabular-nums">{displaySpeed}</span>
-                      <span className="text-[10px] text-muted-foreground">km/h</span>
+                      <span className="text-xs font-bold tabular-nums">{fmtSpeed(displaySpeed, prefs.speedUnit)}</span>
                     </div>
 
                     <div className="hidden sm:flex items-center gap-1.5 bg-muted/60 rounded-lg px-2.5 py-1">

@@ -3,12 +3,14 @@ import { Card } from '@/components/ui/card';
 import StatusBadge from './StatusBadge';
 import { Clock, Fuel, Gauge, MapPin, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useTrackingPrefs, fmtSpeed, fmtDistance } from '@/contexts/TrackingPrefsContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
 }
 
 const VehicleCard = ({ vehicle }: VehicleCardProps) => {
+  const { prefs } = useTrackingPrefs();
   return (
     <Card className="p-4 shadow-lg border-border bg-card">
       <div className="space-y-4">
@@ -33,7 +35,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">Speed</p>
-              <p className="font-medium text-card-foreground">{Math.round(vehicle.speed * 1.852)} km/h</p>
+              <p className="font-medium text-card-foreground">{fmtSpeed(vehicle.speed, prefs.speedUnit)}</p>
             </div>
           </div>
 
@@ -65,7 +67,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
         </div>
 
         <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-          Odometer: {(vehicle.odometer / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km
+          Odometer: {fmtDistance(vehicle.odometer, prefs.distanceUnit)}
         </div>
       </div>
     </Card>

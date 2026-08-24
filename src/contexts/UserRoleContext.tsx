@@ -54,7 +54,7 @@ export const rolePermissions: Record<UserRole, string[]> = {
     '/settings',
     '/profile',
     '/user-access',
-    '/vps',
+    '/cyber-threat-analysis',
   ],
   operations_manager: [
     '/',

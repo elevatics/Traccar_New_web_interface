@@ -21,13 +21,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { getDevices } from "@/services/deviceService";
 import {
-  formatDistanceKm,
   formatDuration,
   getTripsReport,
-  knotsToKmh,
   normalizeTrip,
   tripRowId,
 } from "@/services/tripService";
+import { useTrackingPrefs, fmtSpeed, fmtDistance } from "@/contexts/TrackingPrefsContext";
 import TripRouteMapSection from "@/components/TripRouteMapSection";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
@@ -74,6 +73,7 @@ function computeIsoRange(
 }
 
 export default function Trips() {
+  const { prefs } = useTrackingPrefs();
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([]);
   const [timeRange, setTimeRange] = useState("week");
   const [customFrom, setCustomFrom] = useState("");
@@ -92,10 +92,10 @@ export default function Trips() {
     const totalTrips = tripRows.length;
     const totalDistanceM = tripRows.reduce((sum, trip) => sum + trip.distanceM, 0);
     const totalDurationSec = tripRows.reduce((sum, trip) => sum + trip.durationSec, 0);
-    const avgSpeedKmh = totalTrips
-      ? tripRows.reduce((sum, trip) => sum + knotsToKmh(trip.averageSpeedKnots), 0) / totalTrips
+    const avgSpeedKnots = totalTrips
+      ? tripRows.reduce((sum, trip) => sum + trip.averageSpeedKnots, 0) / totalTrips
       : 0;
-    return { totalTrips, totalDistanceM, totalDurationSec, avgSpeedKmh };
+    return { totalTrips, totalDistanceM, totalDurationSec, avgSpeedKnots };
   }, [tripRows]);
 
   useEffect(() => {
@@ -206,14 +206,14 @@ export default function Trips() {
         <Card className="border-border/70">
           <CardHeader className="pb-2">
             <CardDescription>Total Distance</CardDescription>
-            <CardTitle className="text-2xl">{(analytics.totalDistanceM / 1000).toFixed(1)} km</CardTitle>
+            <CardTitle className="text-2xl">{fmtDistance(analytics.totalDistanceM, prefs.distanceUnit)}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 text-xs text-muted-foreground">Across loaded trips</CardContent>
         </Card>
         <Card className="border-border/70">
           <CardHeader className="pb-2">
             <CardDescription>Average Speed</CardDescription>
-            <CardTitle className="text-2xl">{analytics.avgSpeedKmh.toFixed(0)} km/h</CardTitle>
+            <CardTitle className="text-2xl">{fmtSpeed(analytics.avgSpeedKnots, prefs.speedUnit)}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 text-xs text-muted-foreground">Computed from trip averages</CardContent>
         </Card>
@@ -366,8 +366,8 @@ export default function Trips() {
             <div className="grid gap-4">
               {tripRows.map((trip) => {
                 const id = tripRowId(trip);
-                const avgKmh = knotsToKmh(trip.averageSpeedKnots);
-                const maxKmh = knotsToKmh(trip.maxSpeedKnots);
+                const avgKmh = trip.averageSpeedKnots;
+                const maxKmh = trip.maxSpeedKnots;
                 return (
                   <Card key={id} className="hover:shadow-lg transition-all border-border/70">
                     <CardHeader>
@@ -413,15 +413,15 @@ export default function Trips() {
                                 </div>
                                 <div>
                                   <Label>Distance</Label>
-                                  <p>{formatDistanceKm(trip.distanceM)}</p>
+                                  <p>{fmtDistance(trip.distanceM, prefs.distanceUnit)}</p>
                                 </div>
                                 <div>
                                   <Label>Avg speed</Label>
-                                  <p>{avgKmh.toFixed(0)} km/h</p>
+                                  <p>{fmtSpeed(avgKmh, prefs.speedUnit)}</p>
                                 </div>
                                 <div>
                                   <Label>Max speed</Label>
-                                  <p>{maxKmh.toFixed(0)} km/h</p>
+                                  <p>{fmtSpeed(maxKmh, prefs.speedUnit)}</p>
                                 </div>
                                 {trip.spentFuel != null && (
                                   <div className="col-span-2">
@@ -450,11 +450,11 @@ export default function Trips() {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Distance</p>
-                          <p className="font-medium">{formatDistanceKm(trip.distanceM)}</p>
+                          <p className="font-medium">{fmtDistance(trip.distanceM, prefs.distanceUnit)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Avg speed</p>
-                          <p className="font-medium">{avgKmh.toFixed(0)} km/h</p>
+                          <p className="font-medium">{fmtSpeed(avgKmh, prefs.speedUnit)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Route</p>
@@ -498,7 +498,7 @@ export default function Trips() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">
-                    {(analytics.totalDistanceM / 1000).toFixed(1)} km
+                    {fmtDistance(analytics.totalDistanceM, prefs.distanceUnit)}
                   </div>
                 </CardContent>
               </Card>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useFleetDataContext } from "@/contexts/FleetDataContext";
+import { useTrackingPrefs, fmtSpeed } from "@/contexts/TrackingPrefsContext";
 import { CircleDollarSign, Fuel, Gauge, Settings, Truck } from "lucide-react";
 
 const FINANCE_SETTINGS_KEY = 'fleet_finance_settings_v1';
@@ -39,6 +40,7 @@ function loadFinanceSettings(): FinanceSettings {
 
 export default function Finance() {
   const { fleetData, loading, error } = useFleetDataContext();
+  const { prefs } = useTrackingPrefs();
   const [settings, setSettings] = useState<FinanceSettings>(loadFinanceSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draft, setDraft] = useState<FinanceSettings>(settings);
@@ -217,8 +219,7 @@ export default function Finance() {
             <CardContent>
               <div className="space-y-3">
                 {fleetData.slice(0, 12).map((item: any) => {
-                  // speed from Traccar is in knots → convert to km/h
-                  const speedKmh = Math.round((Number(item.speed) || 0) * 1.852);
+                  const speedKmh = fmtSpeed(Number(item.speed) || 0, prefs.speedUnit);
                   // prefer 'fuel' attribute; fall back to 'fuelLevel' (both 0–100 %)
                   const fuel = Number(item.fuel) || 0;
                   const fuelLevel = fuel > 0 ? fuel : (Number(item.fuelLevel) || 0);
@@ -236,7 +237,7 @@ export default function Finance() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <Badge variant="outline">{statusLabel}</Badge>
-                        <Badge variant="secondary">{speedKmh} km/h</Badge>
+                        <Badge variant="secondary">{speedKmh}</Badge>
                         <Badge variant={fuelLevel < 20 ? "destructive" : "outline"}>
                           Fuel {fuelLevel.toFixed(0)}%
                         </Badge>

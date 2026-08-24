@@ -40,6 +40,7 @@ import { getEvents } from '@/services/eventService';
 import { getDevicePosition } from '@/services/positionService';
 import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTrackingPrefs, fmtSpeed } from '@/contexts/TrackingPrefsContext';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
 
@@ -48,6 +49,7 @@ const MAX_WAYPOINTS = 200;
 
 export default function Fleet() {
   const isMobile = useIsMobile();
+  const { prefs } = useTrackingPrefs();
 
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [liveView, setLiveView] = useState(false);
@@ -127,7 +129,7 @@ export default function Fleet() {
         time: new Date().toLocaleTimeString(),
         lat,
         lng,
-        speed: Math.round(speed * 1.852),
+        speed: speed,
       };
       const prev = tripLogRef.current;
       const last = prev[prev.length - 1];
@@ -252,7 +254,7 @@ export default function Fleet() {
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-lg bg-background border p-1.5 text-center">
             <p className="text-[10px] text-muted-foreground">Speed</p>
-            <p className="font-bold">{Math.round(trackedVehicle.speed * 1.852)} km/h</p>
+            <p className="font-bold">{fmtSpeed(trackedVehicle.speed, prefs.speedUnit)}</p>
           </div>
           <div className="rounded-lg bg-background border p-1.5 text-center">
             <p className="text-[10px] text-muted-foreground">Lat</p>
@@ -369,7 +371,7 @@ export default function Fleet() {
                                   />
                                   <span className="truncate max-w-[160px]">{v.name}</span>
                                   <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                                    {Math.round(v.speed * 1.852)} km/h
+                                    {fmtSpeed(v.speed, prefs.speedUnit)}
                                   </span>
                                 </span>
                               </SelectItem>
@@ -504,7 +506,7 @@ export default function Fleet() {
                               <Gauge className="h-3 w-3" /> Speed
                             </p>
                             <p className="font-bold">
-                              {Math.round(trackedVehicle.speed * 1.852)} km/h
+                              {fmtSpeed(trackedVehicle.speed, prefs.speedUnit)}
                             </p>
                           </div>
                           <div className="rounded-lg bg-background border p-2 text-center">
@@ -559,7 +561,7 @@ export default function Fleet() {
                               [...tripLog].reverse().map((pt, i) => (
                                 <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-1">
                                   <span className="font-mono w-16 shrink-0">{pt.time}</span>
-                                  <span className="shrink-0">{pt.speed} km/h</span>
+                                  <span className="shrink-0">{fmtSpeed(pt.speed, prefs.speedUnit)}</span>
                                   <span className="font-mono truncate min-w-0">{pt.lat.toFixed(5)}, {pt.lng.toFixed(5)}</span>
                                 </div>
                               ))
@@ -621,7 +623,7 @@ export default function Fleet() {
                           </div>
                         </div>
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                          <div>Speed: {Math.round(vehicle.speed * 1.852)} km/h</div>
+                          <div>Speed: {fmtSpeed(vehicle.speed, prefs.speedUnit)}</div>
                           <div>Fuel: {(vehicle.fuel > 0 ? vehicle.fuel : vehicle.fuelLevel).toFixed(0)}%</div>
                           <div>Odometer: {(vehicle.odometer / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km</div>
                         </div>

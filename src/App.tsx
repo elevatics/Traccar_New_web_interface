@@ -70,7 +70,7 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/user-access" element={<UserAccess />} />
-                  <Route path="/vps" element={<VpsMonitor />} />
+                  <Route path="/cyber-threat-analysis" element={<VpsMonitor />} />
                 </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

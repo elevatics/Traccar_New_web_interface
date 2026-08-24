@@ -149,20 +149,22 @@ export function fmtSpeed(
   unit: TrackingPrefs["speedUnit"],
   suppressDrift = false
 ): string {
-  if (suppressDrift && knots < 0.5) {
+  const k = Math.max(0, Number(knots) || 0);
+  if (suppressDrift && k < 0.5) {
     const label = unit === "mph" ? "mph" : unit === "kn" ? "kn" : "km/h";
     return `0 ${label}`;
   }
-  if (unit === "mph") return `${(knots * 1.15078).toFixed(0)} mph`;
-  if (unit === "kn") return `${knots.toFixed(1)} kn`;
-  return `${(knots * 1.852).toFixed(0)} km/h`;
+  if (unit === "mph") return `${(k * 1.15078).toFixed(0)} mph`;
+  if (unit === "kn") return `${k.toFixed(1)} kn`;
+  return `${(k * 1.852).toFixed(0)} km/h`;
 }
 
 /** Convert metres to display string. */
 export function fmtDistance(meters: number, unit: TrackingPrefs["distanceUnit"]): string {
-  if (unit === "mi") return `${(meters / 1609.34).toFixed(1)} mi`;
-  if (unit === "nm") return `${(meters / 1852).toFixed(1)} nm`;
-  return `${(meters / 1000).toFixed(1)} km`;
+  const m = Math.max(0, Number(meters) || 0);
+  if (unit === "mi") return `${(m / 1609.34).toFixed(1)} mi`;
+  if (unit === "nm") return `${(m / 1852).toFixed(1)} nm`;
+  return `${(m / 1000).toFixed(1)} km`;
 }
 
 /** Convert litres to display string. */

@@ -21,6 +21,7 @@ import AddVehicleDialog from './AddVehicleDialog';
 import EditVehicleDialog from './EditVehicleDialog';
 import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { formatDistanceToNow } from 'date-fns';
+import { useTrackingPrefs, fmtSpeed } from '@/contexts/TrackingPrefsContext';
 import { deleteDevice } from '@/services/deviceService';
 import { toast } from 'sonner';
 
@@ -61,6 +62,7 @@ const VehicleList = ({
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
 
   const { vehicles, loading, error, refresh, idleStartTimes } = useFleetDataContext();
+  const { prefs } = useTrackingPrefs();
 
   const getIdleLabel = (vehicleId: string): string | null => {
     const start = idleStartTimes[vehicleId];
@@ -252,8 +254,8 @@ const VehicleList = ({
                       Speed:{' '}
                       <span className="text-card-foreground font-medium">
                         {vehicle.motion === false || vehicle.status === 'offline' || vehicle.speed < 0.5
-                          ? '0 km/h'
-                          : `${Math.round(vehicle.speed * 1.852)} km/h`}
+                          ? fmtSpeed(0, prefs.speedUnit)
+                          : fmtSpeed(vehicle.speed, prefs.speedUnit)}
                       </span>
                     </p>
                     <p className="text-muted-foreground">

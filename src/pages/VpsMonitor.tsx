@@ -97,8 +97,8 @@ export default function VpsMonitor() {
             <Shield size={16} className="text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">CyberShield Monitor</h2>
-            <p className="text-xs text-muted-foreground">VPS Security Intelligence Platform</p>
+            <h2 className="text-sm font-semibold text-foreground">Cyber Threat Analysis</h2>
+            <p className="text-xs text-muted-foreground">Cyber Threat Intelligence Platform</p>
           </div>
         </div>
 
@@ -158,7 +158,7 @@ export default function VpsMonitor() {
 
       <footer className="px-6 py-3 border-t bg-card text-center shrink-0">
         <p className="text-xs text-muted-foreground font-mono">
-          CYBERSHIELD MONITOR · FAIL2BAN SSHD · LIVE DATA ·{" "}
+          CYBER THREAT ANALYSIS · FAIL2BAN SSHD · LIVE DATA ·{" "}
           <span className="text-[hsl(142_71%_38%)] font-medium">ubuntu@vps-24526f0b</span>
         </p>
       </footer>

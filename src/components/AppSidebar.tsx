@@ -11,9 +11,9 @@ import {
   User,
   LogOut,
   ShieldCheck,
+  ShieldAlert,
   Navigation2,
   X,
-  Server,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -139,16 +139,16 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ) : null}
-              {isAdmin && allowedPaths.includes("/vps") ? (
+              {isAdmin && allowedPaths.includes("/cyber-threat-analysis") ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    tooltip="VPS Monitor"
-                    isActive={location.pathname === "/vps"}
+                    tooltip="Cyber Threat Analysis"
+                    isActive={location.pathname === "/cyber-threat-analysis"}
                   >
-                    <NavLink to="/vps">
-                      <Server className="h-4 w-4" />
-                      <span>VPS Monitor</span>
+                    <NavLink to="/cyber-threat-analysis">
+                      <ShieldAlert className="h-4 w-4" />
+                      <span>Cyber Threat Analysis</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

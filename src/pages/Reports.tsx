@@ -72,7 +72,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useFleetDataContext } from "@/contexts/FleetDataContext";
 import { getDrivers } from "@/services/driverService";
 import { getEvents } from "@/services/eventService";
-import { getRouteReport, knotsToKmh } from "@/services/tripService";
+import { getRouteReport } from "@/services/tripService";
+import { useTrackingPrefs, fmtSpeed, fmtDistance, TrackingPrefs } from "@/contexts/TrackingPrefsContext";
 import { normalizeFuelPct } from "@/utils/mapDeviceData";
 import { cn } from "@/lib/utils";
 
@@ -296,11 +297,11 @@ function AddressCell({ address, lat, lng }: { address: string; lat: number; lng:
   );
 }
 
-function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactNode {
+function getCellValue(pos: RoutePosition, key: ColumnKey, prefs: TrackingPrefs): string | React.ReactNode {
   switch (key) {
     case "latitude":        return pos.latitude?.toFixed(6) ?? "—";
     case "longitude":       return pos.longitude?.toFixed(6) ?? "—";
-    case "speed":           return `${Math.round(knotsToKmh(pos.speed))} km/h`;
+    case "speed":           return fmtSpeed(pos.speed, prefs.speedUnit);
     case "course":          return `${Math.round(pos.course)}°`;
     case "altitude":        return `${Math.round(pos.altitude)} m`;
     case "accuracy":        return `±${Math.round(pos.accuracy)} m`;
@@ -326,11 +327,11 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
     case "status":          return String(attr(pos, "status") ?? "—");
     case "odometer": {
       const v = attr<number>(pos, "odometer");
-      return v != null ? `${(v / 1000).toFixed(1)} km` : "—";
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : "—";
     }
     case "tripOdometer": {
       const v = attr<number>(pos, "tripOdometer");
-      return v != null ? `${(v / 1000).toFixed(2)} km` : "—";
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : "—";
     }
     case "fuel": {
       const pct = routeFuelPct(pos);
@@ -353,7 +354,7 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
     }
     case "totalDistance": {
       const v = attr<number>(pos, "totalDistance");
-      return v != null ? `${(v / 1000).toFixed(2)} km` : "—";
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : "—";
     }
     case "rpm":             return String(attr(pos, "rpm") ?? "—");
     case "motion": {
@@ -365,7 +366,7 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
     }
     case "obdSpeed": {
       const v = attr<number>(pos, "obdSpeed");
-      return v != null ? `${Math.round(v)} km/h` : "—";
+      return v != null ? fmtSpeed(v / 1.852, prefs.speedUnit) : "—";
     }
     case "commandResult":   return String(attr(pos, "commandResult") ?? "—");
     case "mapIntake":       return String(attr(pos, "mapIntake") ?? "—");
@@ -376,11 +377,11 @@ function getCellValue(pos: RoutePosition, key: ColumnKey): string | React.ReactN
 }
 
 /** Plain-text value for CSV export (no JSX, ASCII-safe for Excel) */
-function getCsvValue(pos: RoutePosition, key: ColumnKey): string {
+function getCsvValue(pos: RoutePosition, key: ColumnKey, prefs: TrackingPrefs): string {
   switch (key) {
     case "latitude":        return pos.latitude?.toFixed(6) ?? CSV_EMPTY;
     case "longitude":       return pos.longitude?.toFixed(6) ?? CSV_EMPTY;
-    case "speed":           return `${Math.round(knotsToKmh(pos.speed))} km/h`;
+    case "speed":           return fmtSpeed(pos.speed, prefs.speedUnit);
     case "course":          return `${Math.round(pos.course)}`;
     case "altitude":        return `${Math.round(pos.altitude)}`;
     case "accuracy":        return `${Math.round(pos.accuracy)}`;
@@ -412,15 +413,15 @@ function getCsvValue(pos: RoutePosition, key: ColumnKey): string {
     }
     case "totalDistance": {
       const v = attr<number>(pos, "totalDistance");
-      return v != null ? `${(v / 1000).toFixed(2)} km` : CSV_EMPTY;
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : CSV_EMPTY;
     }
     case "odometer": {
       const v = attr<number>(pos, "odometer");
-      return v != null ? `${(v / 1000).toFixed(1)} km` : CSV_EMPTY;
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : CSV_EMPTY;
     }
     case "tripOdometer": {
       const v = attr<number>(pos, "tripOdometer");
-      return v != null ? `${(v / 1000).toFixed(2)} km` : CSV_EMPTY;
+      return v != null ? fmtDistance(v, prefs.distanceUnit) : CSV_EMPTY;
     }
     case "coolantTemp": {
       const v = attr<number>(pos, "coolantTemp");
@@ -431,18 +432,18 @@ function getCsvValue(pos: RoutePosition, key: ColumnKey): string {
       return ids && ids.length > 0 ? ids.join(", ") : CSV_EMPTY;
     }
     default: {
-      const val = getCellValue(pos, key);
+      const val = getCellValue(pos, key, prefs);
       if (typeof val !== "string") return CSV_EMPTY;
       return val === "—" ? CSV_EMPTY : val;
     }
   }
 }
 
-function exportCsv(positions: RoutePosition[], visibleCols: ColumnKey[]) {
+function exportCsv(positions: RoutePosition[], visibleCols: ColumnKey[], prefs: TrackingPrefs) {
   const orderedCols = ALL_COLUMNS.filter((c) => visibleCols.includes(c.key));
   const header = orderedCols.map((c) => c.label);
   const rows = positions.map((pos) =>
-    orderedCols.map((col) => getCsvValue(pos, col.key))
+    orderedCols.map((col) => getCsvValue(pos, col.key, prefs))
   );
   const csvBody = [header, ...rows]
     .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
@@ -469,6 +470,7 @@ function RouteReportSection({
   initialDeviceId?: string;
 }) {
   const { toast } = useToast();
+  const { prefs } = useTrackingPrefs();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>(initialDeviceId ?? "");
   const [dateRange, setDateRange] = useState("today");
   const [positions, setPositions] = useState<RoutePosition[]>([]);
@@ -583,7 +585,7 @@ function RouteReportSection({
             {/* Export buttons — top-right, shown once data is available */}
             {positions.length > 0 && (
               <div className="flex flex-wrap gap-2 shrink-0">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => exportCsv(positions, visibleCols)}>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => exportCsv(positions, visibleCols, prefs)}>
                   <Download className="h-3.5 w-3.5 mr-1.5" />CSV
                 </Button>
                 <Button variant="outline" size="sm" className="h-8" onClick={() => window.print()}>
@@ -683,7 +685,7 @@ function RouteReportSection({
           />
           <KpiChip
             label="Max Speed"
-            value={`${Math.round(knotsToKmh(Math.max(...positions.map((p) => p.speed))))} km/h`}
+            value={fmtSpeed(Math.max(...positions.map((p) => p.speed)), prefs.speedUnit)}
             icon={<Gauge className="h-4 w-4" />}
           />
           <KpiChip
@@ -691,7 +693,7 @@ function RouteReportSection({
             value={(() => {
               const last = positions[positions.length - 1];
               const v = last?.attributes?.totalDistance;
-              return v != null ? `${(Number(v) / 1000).toFixed(1)} km` : "—";
+              return v != null ? fmtDistance(Number(v), prefs.distanceUnit) : "—";
             })()}
             icon={<RouteIcon className="h-4 w-4" />}
             accent
@@ -796,7 +798,7 @@ function RouteReportSection({
                       </TableCell>
                       {ALL_COLUMNS.filter((c) => visibleCols.includes(c.key)).map((col) => (
                         <TableCell key={col.key} className="py-2 whitespace-nowrap">
-                          {getCellValue(pos, col.key)}
+                          {getCellValue(pos, col.key, prefs)}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -964,6 +966,7 @@ export default function Reports() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { fleetData } = useFleetDataContext();
+  const { prefs } = useTrackingPrefs();
   const [activeSubmenu, setActiveSubmenu] = useState<ReportSubmenu>("fleet");
   const [viewReportDialog, setViewReportDialog] = useState(false);
   const [createReportDialog, setCreateReportDialog] = useState(false);
@@ -1001,25 +1004,23 @@ export default function Reports() {
   const fleetSummary = useMemo(() => {
     const total = fleetData.length;
     const active = fleetData.filter((v) => v.status === 'online').length;
-    const avgSpeed = total
-      ? Math.round(fleetData.reduce((sum, v) => sum + v.speed, 0) / total)
+    const avgSpeedKnots = total
+      ? fleetData.reduce((sum, v) => sum + v.speed, 0) / total
       : 0;
-    const totalDistance = Math.round(
-      fleetData.reduce((sum, v) => sum + v.totalDistance, 0)
-    );
-    return { total, active, avgSpeed, totalDistance };
+    const totalDistanceM = fleetData.reduce((sum, v) => sum + v.totalDistance, 0);
+    return { total, active, avgSpeedKnots, totalDistanceM };
   }, [fleetData]);
 
   const performanceSummary = useMemo(() => {
     const totalFuelConsumption = fleetData.reduce((sum, v) => sum + v.fuelConsumption, 0);
     const avgFuelConsumption = fleetData.length ? totalFuelConsumption / fleetData.length : 0;
     const incidentCount = eventRows.filter((r) => r.type.includes("alarm") || r.type.includes("overspeed")).length;
-    const estimatedRevenue = fleetSummary.totalDistance * 1.4;
-    const estimatedExpenses = fleetSummary.totalDistance * 0.9;
+    const estimatedRevenue = fleetSummary.totalDistanceM * 1.4;
+    const estimatedExpenses = fleetSummary.totalDistanceM * 0.9;
     const netProfit = estimatedRevenue - estimatedExpenses;
     const profitMargin = estimatedRevenue > 0 ? (netProfit / estimatedRevenue) * 100 : 0;
     return { totalFuelConsumption, avgFuelConsumption, incidentCount, estimatedRevenue, estimatedExpenses, netProfit, profitMargin };
-  }, [eventRows, fleetData, fleetSummary.totalDistance]);
+  }, [eventRows, fleetData, fleetSummary.totalDistanceM]);
 
   const submenuItems = [
     { id: "fleet" as ReportSubmenu,   label: "Fleet",    icon: BarChart3 },
@@ -1065,9 +1066,9 @@ export default function Reports() {
       case "fleet":
         return (
           <div className="grid gap-4 md:grid-cols-3">
-            <StatCard title="Total Distance"   value={`${fleetSummary.totalDistance.toLocaleString()} km`} sub="Live total from connected trackers" />
+            <StatCard title="Total Distance"   value={fmtDistance(fleetSummary.totalDistanceM, prefs.distanceUnit)} sub="Live total from connected trackers" />
             <StatCard title="Active Vehicles"  value={`${fleetSummary.active}/${fleetSummary.total}`}       sub={`${fleetSummary.total ? Math.round((fleetSummary.active / fleetSummary.total) * 100) : 0}% utilization`} />
-            <StatCard title="Average Speed"    value={`${fleetSummary.avgSpeed} km/h`}                      sub="Based on current telemetry" />
+            <StatCard title="Average Speed"    value={fmtSpeed(fleetSummary.avgSpeedKnots, prefs.speedUnit)} sub="Based on current telemetry" />
           </div>
         );
       case "vehicle":
@@ -1086,7 +1087,7 @@ export default function Reports() {
                 {fleetData.slice(0, 8).map((v) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-medium">{v.name || `Device ${v.id}`}</TableCell>
-                    <TableCell>{Math.round(v.totalDistance).toLocaleString()} km</TableCell>
+                    <TableCell>{fmtDistance(v.totalDistance, prefs.distanceUnit)}</TableCell>
                     <TableCell>{Math.round(v.fuelConsumption)} L/100km</TableCell>
                     <TableCell>
                       <Badge variant={v.status === 'online' ? 'secondary' : 'outline'}>{v.status || 'offline'}</Badge>
@@ -1221,8 +1222,8 @@ export default function Reports() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiChip label="Total Vehicles"  value={fleetSummary.total}                             icon={<Car className="h-4 w-4" />} />
         <KpiChip label="Online Now"      value={fleetSummary.active}                            icon={<Activity className="h-4 w-4" />} accent />
-        <KpiChip label="Avg Speed"       value={`${fleetSummary.avgSpeed} km/h`}                icon={<Gauge className="h-4 w-4" />} />
-        <KpiChip label="Total Distance"  value={`${fleetSummary.totalDistance.toLocaleString()} km`} icon={<RouteIcon className="h-4 w-4" />} />
+        <KpiChip label="Avg Speed"       value={fmtSpeed(fleetSummary.avgSpeedKnots, prefs.speedUnit)}          icon={<Gauge className="h-4 w-4" />} />
+        <KpiChip label="Total Distance"  value={fmtDistance(fleetSummary.totalDistanceM, prefs.distanceUnit)}    icon={<RouteIcon className="h-4 w-4" />} />
       </div>
 
       {/* ── Report Sections nav ── */}

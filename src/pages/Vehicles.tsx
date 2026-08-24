@@ -57,11 +57,13 @@ import AddVehicleDialog from '@/components/AddVehicleDialog';
 import EditVehicleDialog from '@/components/EditVehicleDialog';
 import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { deleteDevice } from '@/services/deviceService';
+import { useTrackingPrefs, fmtSpeed, fmtDistance } from '@/contexts/TrackingPrefsContext';
 
 type ViewType = 'list' | 'status' | 'health' | 'documents' | 'categories' | 'tags';
 
 export default function Vehicles() {
   const { vehicles: vehiclesData, refresh } = useFleetDataContext();
+  const { prefs } = useTrackingPrefs();
   const [currentView, setCurrentView] = useState<ViewType>('list');
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,16 +78,12 @@ export default function Vehicles() {
   const [editVehicleTarget, setEditVehicleTarget] = useState<Vehicle | null>(null);
   const { toast } = useToast();
 
-  /** Traccar speed is in knots — convert to km/h for display. */
-  const toKmh = (knots: number) => Math.round(knots * 1.852);
   /** Prefer the 'fuel' attribute; fall back to 'fuelLevel'. Both are 0–100 %. */
   const fuelPct = (v: { fuel?: number; fuelLevel?: number }) => {
     const f = Number(v.fuel) || 0;
     return f > 0 ? f : (Number(v.fuelLevel) || 0);
   };
-  /** Traccar odometer is in metres — convert to km for display. */
-  const fmtOdo = (meters: number) =>
-    `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+  const fmtOdo = (meters: number) => fmtDistance(meters, prefs.distanceUnit);
 
 
   const viewOptions = [
@@ -110,9 +108,8 @@ export default function Vehicles() {
   const avgFuelLevel = vehiclesData.length
     ? Math.round(vehiclesData.reduce((sum, v) => sum + fuelPct(v), 0) / vehiclesData.length)
     : 0;
-  // speed is in knots — average then convert to km/h for display
-  const avgSpeed = vehiclesData.length
-    ? Math.round(vehiclesData.reduce((sum, v) => sum + v.speed, 0) / vehiclesData.length * 1.852)
+  const avgSpeedKnots = vehiclesData.length
+    ? vehiclesData.reduce((sum, v) => sum + v.speed, 0) / vehiclesData.length
     : 0;
 
   const handleViewDetails = (vehicle: Vehicle) => {
@@ -193,7 +190,7 @@ export default function Vehicles() {
   const getUtilization = (vehicle: Vehicle) => {
     if (vehicle.status === 'online') {
       // Compare km/h (converted from knots) against a 120 km/h reference
-      return Math.min(100, Math.max(10, Math.round((toKmh(vehicle.speed) / 120) * 100)));
+      return Math.min(100, Math.max(10, Math.round(((vehicle.speed * 1.852) / 120) * 100)));
     }
     if (vehicle.status === 'idle') return 35;
     return 0;
@@ -243,7 +240,7 @@ export default function Vehicles() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Gauge className="h-4 w-4 text-muted-foreground" />
-                    <span>{toKmh(vehicle.speed)} km/h</span>
+                    <span>{fmtSpeed(vehicle.speed, prefs.speedUnit)}</span>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
                     <Fuel className="h-4 w-4 text-muted-foreground" />
@@ -332,7 +329,7 @@ export default function Vehicles() {
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
                   <div className="text-xs text-muted-foreground">Speed</div>
-                  <div className="font-semibold text-sm">{toKmh(vehicle.speed)} km/h</div>
+                  <div className="font-semibold text-sm">{fmtSpeed(vehicle.speed, prefs.speedUnit)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Fuel</div>
@@ -593,7 +590,7 @@ export default function Vehicles() {
         <Card className="border-border/70">
           <CardHeader className="pb-2">
             <CardDescription>Average Speed</CardDescription>
-            <CardTitle className="text-2xl">{avgSpeed} km/h</CardTitle>
+            <CardTitle className="text-2xl">{fmtSpeed(avgSpeedKnots, prefs.speedUnit)}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 text-xs text-muted-foreground">Across all connected vehicles</CardContent>
         </Card>
@@ -645,7 +642,7 @@ export default function Vehicles() {
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Speed</div>
-                <div className="font-medium">{selectedVehicle ? toKmh(selectedVehicle.speed) : 0} km/h</div>
+                <div className="font-medium">{selectedVehicle ? fmtSpeed(selectedVehicle.speed, prefs.speedUnit) : fmtSpeed(0, prefs.speedUnit)}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Fuel Level</div>
@@ -686,7 +683,7 @@ export default function Vehicles() {
           <div className="space-y-4">
             {selectedVehicle && (() => {
               const svFuel = fuelPct(selectedVehicle);
-              const svKmh  = toKmh(selectedVehicle.speed);
+              const svKmh  = Math.round(selectedVehicle.speed * 1.852);
               const health = getHealthStatus(svFuel);
               const HealthIcon = health.icon;
               return (
@@ -800,7 +797,7 @@ export default function Vehicles() {
                 <div>
                   <div className="font-medium">Driving Activity</div>
                   <div className="text-sm text-muted-foreground">
-                    Speed: {selectedVehicle ? toKmh(selectedVehicle.speed) : 0} km/h
+                    Speed: {selectedVehicle ? fmtSpeed(selectedVehicle.speed, prefs.speedUnit) : fmtSpeed(0, prefs.speedUnit)}
                   </div>
                 </div>
                 <Badge variant="outline" className={selectedVehicle?.status === 'online' ? 'text-green-600' : 'text-muted-foreground'}>

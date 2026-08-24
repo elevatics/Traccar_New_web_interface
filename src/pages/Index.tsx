@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useFleetDataContext } from '@/contexts/FleetDataContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTrackingPrefs, fmtSpeed } from '@/contexts/TrackingPrefsContext';
 
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? '';
@@ -16,6 +17,7 @@ const MAX_TAIL_POINTS = 120;
 
 const Index = () => {
   const { vehicles } = useFleetDataContext();
+  const { prefs } = useTrackingPrefs();
 
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [filterStatus, setFilterStatus] = useState<VehicleStatus | 'all'>('all');
@@ -120,8 +122,8 @@ const Index = () => {
               <Gauge className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="font-mono shrink-0">
                 {selectedVehicle.motion && selectedVehicle.speed > 0.5
-                  ? `${Math.round(selectedVehicle.speed * 1.852)} km/h`
-                  : '0 km/h'}
+                  ? fmtSpeed(selectedVehicle.speed, prefs.speedUnit)
+                  : fmtSpeed(0, prefs.speedUnit)}
               </span>
               <span className="text-muted-foreground shrink-0">•</span>
               <Navigation2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
