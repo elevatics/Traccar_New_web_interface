@@ -956,6 +956,7 @@ const FleetMap = ({
               onOpenAIChat={() => {
                 setAiChatVehicle(selectedVehicle);
                 setShowAIChat(true);
+                onClearSelection();
               }}
             />
           </div>
