@@ -41,8 +41,23 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Plotly — very large (~3 MB), split first
-          if (id.includes("node_modules/plotly.js") || id.includes("node_modules/react-plotly.js")) {
+          // ── React core FIRST — must be a single instance across the entire bundle ──
+          // Matches: react, react-dom, react-is, react-hook-form, react-plotly.js,
+          // react-markdown, react-router-dom, etc. — anything starting with "react"
+          // inside node_modules. Exceptions (recharts, @radix) are caught below
+          // but they import react from this same chunk so there's no duplication.
+          if (
+            /node_modules\/react(-dom|-is|-hook-form|-markdown|-plotly\.js|-router[^/]*)?(\/|$)/.test(id) ||
+            id.includes("node_modules/scheduler")
+          ) {
+            return "vendor-react";
+          }
+          // React Router + Remix runtime
+          if (id.includes("node_modules/react-router") || id.includes("node_modules/@remix-run")) {
+            return "vendor-router";
+          }
+          // Plotly — very large (~3 MB)
+          if (id.includes("node_modules/plotly.js")) {
             return "vendor-plotly";
           }
           // Mapbox GL
@@ -52,7 +67,7 @@ export default defineConfig(({ mode }) => ({
           // Recharts + d3 deps
           if (
             id.includes("node_modules/recharts") ||
-            id.includes("node_modules/d3") ||
+            id.includes("node_modules/d3-") ||
             id.includes("node_modules/victory-vendor")
           ) {
             return "vendor-charts";
@@ -65,19 +80,11 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("node_modules/@radix-ui")) {
             return "vendor-radix";
           }
-          // React core
-          if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) {
-            return "vendor-react";
-          }
-          // React Router
-          if (id.includes("node_modules/react-router") || id.includes("node_modules/@remix-run")) {
-            return "vendor-router";
-          }
           // TanStack Query
           if (id.includes("node_modules/@tanstack")) {
             return "vendor-query";
           }
-          // Everything else in node_modules goes to a general vendor chunk
+          // Everything else in node_modules
           if (id.includes("node_modules")) {
             return "vendor-misc";
           }
