@@ -38,60 +38,36 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          // ── React core FIRST — must be a single instance across the entire bundle ──
-          // Matches: react, react-dom, react-is, react-hook-form, react-plotly.js,
-          // react-markdown, react-router-dom, etc. — anything starting with "react"
-          // inside node_modules. Exceptions (recharts, @radix) are caught below
-          // but they import react from this same chunk so there's no duplication.
-          if (
-            /node_modules\/react(-dom|-is|-hook-form|-markdown|-plotly\.js|-router[^/]*)?(\/|$)/.test(id) ||
-            id.includes("node_modules/scheduler")
-          ) {
-            return "vendor-react";
-          }
-          // React Router + Remix runtime
-          if (id.includes("node_modules/react-router") || id.includes("node_modules/@remix-run")) {
-            return "vendor-router";
-          }
-          // Plotly — very large (~3 MB)
-          if (id.includes("node_modules/plotly.js")) {
-            return "vendor-plotly";
-          }
-          // Mapbox GL
-          if (id.includes("node_modules/mapbox-gl")) {
-            return "vendor-mapbox";
-          }
-          // Recharts + d3 deps
-          if (
-            id.includes("node_modules/recharts") ||
-            id.includes("node_modules/d3-") ||
-            id.includes("node_modules/victory-vendor")
-          ) {
-            return "vendor-charts";
-          }
-          // Lucide icons
-          if (id.includes("node_modules/lucide-react")) {
-            return "vendor-lucide";
-          }
-          // Radix UI primitives
-          if (id.includes("node_modules/@radix-ui")) {
-            return "vendor-radix";
-          }
-          // TanStack Query
-          if (id.includes("node_modules/@tanstack")) {
-            return "vendor-query";
-          }
-          // Everything else in node_modules
-          if (id.includes("node_modules")) {
-            return "vendor-misc";
-          }
-        },
+  rollupOptions: {
+    output: {
+      manualChunks(id) {
+        const normalId = id.replace(/\\/g, "/");
+        if (!normalId.includes("/node_modules/")) return;
+
+        if (normalId.includes("/node_modules/plotly.js/") || normalId.includes("/node_modules/react-plotly.js/")) {
+          return "vendor-plotly";
+        }
+        if (normalId.includes("/node_modules/mapbox-gl/")) {
+          return "vendor-mapbox";
+        }
+        if (
+          normalId.includes("/node_modules/recharts/") ||
+          normalId.includes("/node_modules/d3-") ||
+          normalId.includes("/node_modules/victory-vendor/")
+        ) {
+          return "vendor-charts";
+        }
+        if (normalId.includes("/node_modules/lucide-react/")) {
+          return "vendor-lucide";
+        }
+
+        // Everything else (react, react-dom, react-router, radix, tanstack,
+        // next-themes, sonner, scheduler, etc.) goes into ONE chunk so there
+        // is no cross-chunk load-order dependency on React being ready.
+        return "vendor";
       },
     },
-    // Raise the chunk warning threshold so CI isn't noisy for known large vendors
     chunkSizeWarningLimit: 1000,
   },
+},
 }));
