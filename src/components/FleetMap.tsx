@@ -573,10 +573,12 @@ const FleetMap = ({
 
     bind();
     mapInstance.on('style.load', bind);
+    mapInstance.on('idle', bind); // ← retry once the vehicle layer has actually been added
 
     return () => {
       unbind();
       mapInstance.off('style.load', bind);
+      mapInstance.off('idle', bind); // ← added
     };
   }, [onSelectVehicle]);
 

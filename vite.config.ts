@@ -38,6 +38,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+  chunkSizeWarningLimit: 1000,
+
   rollupOptions: {
     output: {
       manualChunks(id) {
@@ -67,7 +69,6 @@ export default defineConfig(({ mode }) => ({
         return "vendor";
       },
     },
-    chunkSizeWarningLimit: 1000,
   },
 },
 }));

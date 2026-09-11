@@ -541,7 +541,7 @@ function ChatUI({
 
         {/* ── Smart Suggestions (empty state) ── */}
         {isEmptyState && (
-          <div className="px-3 pb-2 pt-2 border-t border-blue-500/10 bg-white/60 dark:bg-white/3 flex-shrink-0">
+          <div className="px-3 pb-2 pt-2 border-t border-blue-500/10 bg-slate-50 dark:bg-white/[0.04] flex-shrink-0">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
               <Sparkles className="h-3 w-3 text-blue-500" />
               Suggested Insights
@@ -551,9 +551,9 @@ function ChatUI({
                 <button
                   key={s.label}
                   onClick={() => onInputChange(s.label)}
-                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-full bg-white dark:bg-white/8 border border-blue-500/20 text-foreground hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:border-blue-500/40 hover:text-blue-600 dark:hover:text-blue-400 transition-all font-medium shadow-sm"
+                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-full bg-white dark:bg-slate-800/80 border border-blue-500/20 dark:border-blue-400/20 text-foreground dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/15 hover:border-blue-500/40 hover:text-blue-600 dark:hover:text-blue-300 transition-all font-medium shadow-sm"
                 >
-                  <span className="text-blue-500">{s.icon}</span>
+                  <span className="text-blue-500 dark:text-blue-400">{s.icon}</span>
                   {s.label}
                 </button>
               ))}
@@ -562,7 +562,7 @@ function ChatUI({
         )}
 
         {/* ── Input bar ── */}
-        <div className="px-3 pb-3 pt-2.5 border-t border-blue-500/15 bg-white/80 dark:bg-black/20 backdrop-blur-sm shrink-0">
+        <div className="px-3 pb-3 pt-2.5 border-t border-blue-500/15 bg-white/80 dark:bg-slate-950/60 backdrop-blur-sm shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -576,7 +576,7 @@ function ChatUI({
                 value={input}
                 onChange={(e) => onInputChange(e.target.value)}
                 placeholder={`Ask anything about ${vehicle.name}…`}
-                className="flex-1 h-10 text-sm rounded-xl border-blue-500/25 bg-white dark:bg-white/8 focus-visible:ring-blue-500/30 focus-visible:border-blue-500/50 pr-2"
+                className="flex-1 h-10 text-sm rounded-xl border-blue-500/25 dark:border-blue-400/20 bg-white dark:bg-slate-800/80 text-foreground dark:text-slate-100 placeholder:text-muted-foreground dark:placeholder:text-slate-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-500/50 pr-2"
                 disabled={isLoading}
               />
             </div>
