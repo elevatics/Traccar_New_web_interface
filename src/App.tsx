@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,22 +10,33 @@ import { UserRoleProvider } from "./contexts/UserRoleContext";
 import { TraccarAuthProvider, useTraccarAuth } from "./contexts/TraccarAuthContext";
 import { TrackingPrefsProvider } from "./contexts/TrackingPrefsContext";
 import { FleetDataProvider } from "./contexts/FleetDataContext";
+
 import Index from "./pages/Index";
-import Fleet from "./pages/Fleet";
-import Trips from "./pages/Trips";
-import Drivers from "./pages/Drivers";
-import Vehicles from "./pages/Vehicles";
-import Maintenance from "./pages/Maintenance";
-import Reports from "./pages/Reports";
-import Finance from "./pages/Finance";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import UserAccess from "./pages/UserAccess";
-import Replay from "./pages/Replay";
-import VpsMonitor from "./pages/VpsMonitor";
 import Login from "./pages/Login";
-import ResetPassword from "./pages/ResetPassword";
-import NotFound from "./pages/NotFound";
+
+const Fleet       = lazy(() => import("./pages/Fleet"));
+const Trips       = lazy(() => import("./pages/Trips"));
+const Drivers     = lazy(() => import("./pages/Drivers"));
+const Vehicles    = lazy(() => import("./pages/Vehicles"));
+const Maintenance = lazy(() => import("./pages/Maintenance"));
+const Reports     = lazy(() => import("./pages/Reports"));
+const Finance     = lazy(() => import("./pages/Finance"));
+const Settings    = lazy(() => import("./pages/Settings"));
+const Profile     = lazy(() => import("./pages/Profile"));
+const UserAccess  = lazy(() => import("./pages/UserAccess"));
+const Replay      = lazy(() => import("./pages/Replay"));
+const VpsMonitor  = lazy(() => import("./pages/VpsMonitor"));
+const ResetPassword  = lazy(() => import("./pages/ResetPassword"));
+const NotFound       = lazy(() => import("./pages/NotFound"));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen w-full bg-background">
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -38,7 +50,9 @@ const ProtectedRoutes = () => {
   return (
     <FleetDataProvider>
       <Layout>
-        <Outlet />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </Layout>
     </FleetDataProvider>
   );
@@ -54,6 +68,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -75,6 +90,7 @@ const App = () => (
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </BrowserRouter>
           </TooltipProvider>
         </TraccarAuthProvider>
